@@ -1,0 +1,12 @@
+target/
+.idea/
+*.iml
+.vscode/
+*.class
+*.log
+.worktrees/
+worktrees/
+node_modules/
+.DS_Store
+src/main/frontend/generated/
+package-lock.json
