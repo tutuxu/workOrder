@@ -2,6 +2,26 @@
 
 个人工作事项追踪桌面应用。基于 Tauri 2 + Vue 3 + Rust，数据保存在本地 SQLite。
 
+## 获取可运行版本（最终用户）
+
+若你**只需要运行程序、不需要源码**，请克隆发布分支：
+
+```bash
+git clone -b workOrder-release <仓库地址>
+```
+
+克隆后目录结构如下，可直接使用：
+
+```
+├── README.md
+├── portable/          # 便携版，双击 workOrder.exe 运行
+└── installer/         # 安装包（setup.exe / msi）
+```
+
+也可在 GitHub 上将分支切换为 `workOrder-release` 后下载 ZIP。
+
+---
+
 ## 一键运行（最终用户）
 
 若你拿到的是已打包的 **`portable`** 文件夹，无需安装 Node.js 或 Rust：
@@ -84,6 +104,19 @@ release/
 ```
 
 将 **`release/portable`** 文件夹压缩为 zip 即可分享给他人一键运行。
+
+### 更新 `workOrder-release` 发布分支
+
+`workOrder-release` 分支**仅包含可运行产物**（无源码），供他人直接克隆使用。本地打包完成后，可手动更新该分支：
+
+```bash
+npm run package:win
+git checkout workOrder-release
+# 用 release/portable 与 release/installer 覆盖分支根目录对应文件夹
+git add portable installer README.md
+git commit -m "发布 workOrder x.x.x"
+git checkout main
+```
 
 ### 数据目录
 
