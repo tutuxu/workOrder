@@ -1,0 +1,142 @@
+use chrono::Utc;
+use rusqlite::{params, Connection, OptionalExtension};
+
+use crate::db::datetime::{format_datetime, read_datetime_column};
+use crate::error::ServiceError;
+use crate::models::progress_log::ProgressLog;
+use crate::services::work_order_service::get_required;
+
+fn row_to_progress_log(row: &rusqlite::Row<'_>) -> Result<ProgressLog, rusqlite::Error> {
+    Ok(ProgressLog {
+        id: Some(row.get("id")?),
+        work_order_id: row.get("work_order_id")?,
+        content: row.get("content")?,
+        created_at: read_datetime_column(row, "created_at")?,
+    })
+}
+
+fn get_required_log(
+    conn: &Connection,
+    log_id: i64,
+    work_order_id: i64,
+) -> Result<ProgressLog, ServiceError> {
+    let log = conn
+        .query_row(
+            "SELECT id, work_order_id, content, created_at FROM progress_log WHERE id = ?1",
+            params![log_id],
+            row_to_progress_log,
+        )
+        .optional()?
+        .ok_or_else(|| ServiceError::NotFound(format!("Progress log not found: {log_id}")))?;
+    if log.work_order_id != work_order_id {
+        return Err(ServiceError::Validation(format!(
+            "Progress log does not belong to work order: {work_order_id}"
+        )));
+    }
+    Ok(log)
+}
+
+pub fn find_by_work_order_id(
+    conn: &Connection,
+    work_order_id: i64,
+) -> Result<Vec<ProgressLog>, ServiceError> {
+    let mut stmt = conn.prepare(
+        "SELECT id, work_order_id, content, created_at FROM progress_log WHERE work_order_id = ?1 ORDER BY created_at DESC",
+    )?;
+    let rows = stmt.query_map(params![work_order_id], row_to_progress_log)?;
+    let mut result = Vec::new();
+    for row in rows {
+        result.push(row?);
+    }
+    Ok(result)
+}
+
+pub fn add_log(
+    conn: &Connection,
+    work_order_id: i64,
+    content: &str,
+) -> Result<ProgressLog, ServiceError> {
+    if content.trim().is_empty() {
+        return Err(ServiceError::Validation("Progress content is required".into()));
+    }
+    get_required(conn, work_order_id)?;
+    let now = Utc::now().naive_utc();
+    conn.execute(
+        "INSERT INTO progress_log (work_order_id, content, created_at) VALUES (?1, ?2, ?3)",
+        params![work_order_id, content.trim(), format_datetime(now)],
+    )?;
+    let id = conn.last_insert_rowid();
+    get_required_log(conn, id, work_order_id)
+}
+
+pub fn update_log(
+    conn: &Connection,
+    log_id: i64,
+    work_order_id: i64,
+    content: &str,
+) -> Result<ProgressLog, ServiceError> {
+    if content.trim().is_empty() {
+        return Err(ServiceError::Validation("Progress content is required".into()));
+    }
+    get_required_log(conn, log_id, work_order_id)?;
+    conn.execute(
+        "UPDATE progress_log SET content = ?1 WHERE id = ?2",
+        params![content.trim(), log_id],
+    )?;
+    get_required_log(conn, log_id, work_order_id)
+}
+
+pub fn delete_log(
+    conn: &Connection,
+    log_id: i64,
+    work_order_id: i64,
+) -> Result<(), ServiceError> {
+    get_required_log(conn, log_id, work_order_id)?;
+    conn.execute("DELETE FROM progress_log WHERE id = ?1", params![log_id])?;
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::db::connection::open_connection;
+    use crate::models::work_order::WorkOrderInput;
+    use crate::models::work_order_status::WorkOrderStatus;
+    use crate::services::work_order_service::create;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn temp_db() -> (Connection, std::path::PathBuf) {
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let dir = std::env::temp_dir().join(format!("workorder-plog-{nanos}"));
+        let conn = open_connection(&dir).unwrap();
+        (conn, dir)
+    }
+
+    #[test]
+    fn add_update_delete_log() {
+        let (conn, dir) = temp_db();
+        let wo = create(
+            &conn,
+            WorkOrderInput {
+                title: "With log".into(),
+                description: None,
+                status: WorkOrderStatus::NotStarted,
+                waiting_for: None,
+                waiting_reason: None,
+                due_date: None,
+            },
+        )
+        .unwrap();
+        let log = add_log(&conn, wo.id.unwrap(), "Started investigation").unwrap();
+        assert_eq!(find_by_work_order_id(&conn, wo.id.unwrap()).unwrap().len(), 1);
+        let updated = update_log(&conn, log.id.unwrap(), wo.id.unwrap(), "Updated note").unwrap();
+        assert_eq!(updated.content, "Updated note");
+        delete_log(&conn, log.id.unwrap(), wo.id.unwrap()).unwrap();
+        assert!(find_by_work_order_id(&conn, wo.id.unwrap()).unwrap().is_empty());
+        drop(conn);
+        let _ = std::fs::remove_dir_all(dir);
+    }
+}

@@ -1,6 +1,0 @@
-@import url('./main-layout.css');
-
-vaadin-grid::part(body-row).overdue-row {
-    background-color: var(--lumo-error-color-10pct);
-    color: var(--lumo-error-text-color);
-}

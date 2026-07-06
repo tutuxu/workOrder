@@ -1,6 +1,7 @@
 target/
 release/
 dist/
+src-tauri/target/
 .idea/
 *.iml
 .vscode/
@@ -10,6 +11,4 @@ dist/
 worktrees/
 node_modules/
 .DS_Store
-src/main/frontend/generated/
-package-lock.json
 data/

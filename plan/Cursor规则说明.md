@@ -1,5 +1,7 @@
 # workOrder Cursor 规则说明
 
+> **架构状态（2026-07-06）**：项目正迁移至 Tauri + Vue 3 + Rust。下文 Java 相关规则在 Tauri 迁移完成、删除 `src/main/java` 前仍适用；迁移后以前端（Vue/TS）与 Rust 规范为主。
+
 本文档说明从 `xiamen-bicycle-server` 本地化复制到本项目的 Cursor 规则，以及使用方式。
 
 ## 文件位置
@@ -26,7 +28,7 @@
 |----|----------------------|-----------|
 | globs | `loit-service/loit-bicycle/**/*.java` | `src/main/java/**/*.java` |
 | 包根路径 | `com.loit.modules.*` | `com.workorder.*` |
-| 技术栈引用 | Spring + MyBatis | Spring Boot 3 + Vaadin + JPA + SQLite + Flyway |
+| 技术栈引用 | Spring + MyBatis | ~~Spring Boot 3 + Vaadin~~ → **Tauri 2 + Vue 3 + Rust + SQLite**（见 [技术选型.md](./技术选型.md)） |
 | 分层 | Controller / Service / Dao / XML | View / Service / Repository / Entity |
 | git add 后缀 | `.java`、`.xml` | `.java`、`.xml`、`.sql`（Flyway） |
 | 示例实体 | Bicycle*、RegionMgr* | WorkOrder、ProgressLog |
@@ -49,6 +51,6 @@
 
 ## 后续建议
 
-1. **P1 脚手架完成后**执行一次 `白名单初始化`，扫描 `com.workorder` 包更新业务缩写表
-2. 若 Vaadin 视图类命名惯例稳定，可在 `java-naming.mdc` 补充 `*View`、`*Dialog` 示例
+1. **Tauri 迁移期间**：Java 规则仍对 `src/main/java` 生效；迁移完成后可新增 Vue/TS、Rust 相关规则
+2. ~~P1 脚手架完成后执行白名单初始化~~（Java 栈待删除）
 3. 初始化 Git 仓库后，`auto-git-track-new-files` 规则方可生效
