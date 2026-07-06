@@ -1,4 +1,6 @@
 target/
+release/
+dist/
 .idea/
 *.iml
 .vscode/
@@ -10,3 +12,4 @@ node_modules/
 .DS_Store
 src/main/frontend/generated/
 package-lock.json
+data/

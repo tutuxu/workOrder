@@ -1,5 +1,6 @@
 package com.workorder.service;
 
+import com.workorder.model.ProgressLog;
 import com.workorder.model.WorkOrder;
 import com.workorder.model.WorkOrderStatus;
 import com.workorder.repository.ProgressLogRepository;
@@ -13,6 +14,7 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * 代办事项业务服务。
@@ -40,12 +42,15 @@ public class WorkOrderService {
         if (workOrder.getPriority() == null) {
             workOrder.setPriority(nextPriority());
         }
-        return workOrderRepository.save(workOrder);
+        WorkOrder saved = workOrderRepository.save(workOrder);
+        appendWaitingReplyProgressLog(null, saved);
+        return saved;
     }
 
     @Transactional
     public WorkOrder update(Long id, WorkOrder workOrder) {
         WorkOrder existing = getRequired(id);
+        WorkOrder before = snapshotWaitingState(existing);
         validateTitle(workOrder.getTitle());
         existing.setTitle(workOrder.getTitle());
         existing.setDescription(workOrder.getDescription());
@@ -53,7 +58,9 @@ public class WorkOrderService {
         existing.setWaitingFor(workOrder.getWaitingFor());
         existing.setWaitingReason(workOrder.getWaitingReason());
         existing.setDueDate(workOrder.getDueDate());
-        return workOrderRepository.save(existing);
+        WorkOrder saved = workOrderRepository.save(existing);
+        appendWaitingReplyProgressLog(before, saved);
+        return saved;
     }
 
     @Transactional
@@ -125,5 +132,79 @@ public class WorkOrderService {
         if (!StringUtils.hasText(title)) {
             throw new IllegalArgumentException("Title is required");
         }
+    }
+
+    /**
+     * 复制与待回复过程记录相关的字段，供更新前后对比。
+     *
+     * @param source 更新前的工单
+     * @return 仅含状态与等待字段的快照
+     */
+    private WorkOrder snapshotWaitingState(WorkOrder source) {
+        WorkOrder snapshot = new WorkOrder();
+        snapshot.setStatus(source.getStatus());
+        snapshot.setWaitingFor(source.getWaitingFor());
+        snapshot.setWaitingReason(source.getWaitingReason());
+        return snapshot;
+    }
+
+    /**
+     * 状态变为待回复或等待信息变更时，将待回复过程写入处置时间线。
+     *
+     * @param before 更新前的工单；新建时为 null
+     * @param after  已持久化的工单
+     */
+    private void appendWaitingReplyProgressLog(WorkOrder before, WorkOrder after) {
+        if (after.getStatus() != WorkOrderStatus.WAITING_REPLY) {
+            return;
+        }
+        boolean enteredWaiting = before == null || before.getStatus() != WorkOrderStatus.WAITING_REPLY;
+        boolean waitingInfoChanged = before != null
+                && before.getStatus() == WorkOrderStatus.WAITING_REPLY
+                && (!Objects.equals(normalizeText(before.getWaitingFor()), normalizeText(after.getWaitingFor()))
+                || !Objects.equals(normalizeText(before.getWaitingReason()), normalizeText(after.getWaitingReason())));
+        if (!enteredWaiting && !waitingInfoChanged) {
+            return;
+        }
+        ProgressLog log = new ProgressLog();
+        log.setWorkOrderId(after.getId());
+        log.setContent(formatWaitingReplyLog(after.getWaitingFor(), after.getWaitingReason()));
+        progressLogRepository.save(log);
+    }
+
+    /**
+     * 组装待回复过程记录文案。
+     *
+     * @param waitingFor    等待对象
+     * @param waitingReason 等待原因
+     * @return 写入时间线的过程内容
+     */
+    private String formatWaitingReplyLog(String waitingFor, String waitingReason) {
+        StringBuilder content = new StringBuilder(WorkOrderStatus.WAITING_REPLY.getDisplayName());
+        if (StringUtils.hasText(waitingFor)) {
+            content.append("：等待 ").append(waitingFor.trim());
+        }
+        if (StringUtils.hasText(waitingReason)) {
+            if (StringUtils.hasText(waitingFor)) {
+                content.append("，");
+            } else {
+                content.append("：");
+            }
+            content.append("原因 ").append(waitingReason.trim());
+        }
+        return content.toString();
+    }
+
+    /**
+     * 将空白文本规范为 null，便于比较等待字段是否变更。
+     *
+     * @param value 原始文本
+     * @return 去空白后的文本；空白时返回 null
+     */
+    private String normalizeText(String value) {
+        if (!StringUtils.hasText(value)) {
+            return null;
+        }
+        return value.trim();
     }
 }

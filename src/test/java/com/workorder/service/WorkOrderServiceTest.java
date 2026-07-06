@@ -1,5 +1,6 @@
 package com.workorder.service;
 
+import com.workorder.model.ProgressLog;
 import com.workorder.model.WorkOrder;
 import com.workorder.model.WorkOrderStatus;
 import org.junit.jupiter.api.BeforeEach;
@@ -86,6 +87,44 @@ class WorkOrderServiceTest {
         WorkOrder created = workOrderService.create(buildWorkOrder("With log"));
         progressLogService.addLog(created.getId(), "Started investigation");
         assertThat(progressLogService.findByWorkOrderId(created.getId())).hasSize(1);
+    }
+
+    @Test
+    void waitingReplyStatusAppendsProgressLog() {
+        WorkOrder created = workOrderService.create(buildWorkOrder("Waiting task"));
+        created.setStatus(WorkOrderStatus.WAITING_REPLY);
+        created.setWaitingFor("联调方");
+        created.setWaitingReason("等待接口确认");
+        workOrderService.update(created.getId(), created);
+
+        assertThat(progressLogService.findByWorkOrderId(created.getId()))
+                .singleElement()
+                .extracting(log -> log.getContent())
+                .isEqualTo("待回复：等待 联调方，原因 等待接口确认");
+    }
+
+    @Test
+    void updateProgressLog() {
+        WorkOrder created = workOrderService.create(buildWorkOrder("Editable log"));
+        ProgressLog log = progressLogService.addLog(created.getId(), "Initial note");
+
+        ProgressLog updated = progressLogService.updateLog(log.getId(), created.getId(), "Updated note");
+
+        assertThat(updated.getContent()).isEqualTo("Updated note");
+        assertThat(progressLogService.findByWorkOrderId(created.getId()))
+                .singleElement()
+                .extracting(ProgressLog::getContent)
+                .isEqualTo("Updated note");
+    }
+
+    @Test
+    void deleteProgressLog() {
+        WorkOrder created = workOrderService.create(buildWorkOrder("Deletable log"));
+        ProgressLog log = progressLogService.addLog(created.getId(), "To delete");
+
+        progressLogService.deleteLog(log.getId(), created.getId());
+
+        assertThat(progressLogService.findByWorkOrderId(created.getId())).isEmpty();
     }
 
     @Test

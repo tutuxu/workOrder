@@ -3,11 +3,12 @@ package com.workorder.view;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.checkbox.Checkbox;
-import com.vaadin.flow.component.combobox.MultiSelectComboBox;
+import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.grid.Grid;
 import com.vaadin.flow.component.grid.dnd.GridDragStartEvent;
 import com.vaadin.flow.component.grid.dnd.GridDropLocation;
 import com.vaadin.flow.component.grid.dnd.GridDropMode;
+import com.vaadin.flow.component.orderedlayout.FlexComponent.Alignment;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.data.renderer.TextRenderer;
@@ -22,9 +23,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
-import java.util.Set;
+import java.util.EnumMap;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -41,7 +42,8 @@ public class WorkOrderListView extends VerticalLayout {
     private final ProgressLogService progressLogService;
 
     private final Grid<WorkOrder> grid = new Grid<>(WorkOrder.class, false);
-    private final MultiSelectComboBox<WorkOrderStatus> statusFilter = new MultiSelectComboBox<>("状态筛选");
+    private final Map<WorkOrderStatus, Checkbox> statusFilterCheckboxes = new EnumMap<>(WorkOrderStatus.class);
+    private final HorizontalLayout statusFilterLayout = new HorizontalLayout();
     private final Checkbox showCompletedCheckbox = new Checkbox("显示已完成", false);
     private final Button createButton = new Button("新建");
     private WorkOrder draggedItem;
@@ -63,10 +65,14 @@ public class WorkOrderListView extends VerticalLayout {
     }
 
     private void configureToolbar() {
-        statusFilter.setItems(Arrays.asList(WorkOrderStatus.values()));
-        statusFilter.setItemLabelGenerator(WorkOrderStatus::getDisplayName);
-        statusFilter.setPlaceholder("全部状态");
-        statusFilter.addValueChangeListener(event -> refreshGrid());
+        statusFilterLayout.add(new Span("状态筛选"));
+        statusFilterLayout.setAlignItems(Alignment.CENTER);
+        for (WorkOrderStatus status : WorkOrderStatus.values()) {
+            Checkbox checkbox = new Checkbox(status.getDisplayName());
+            checkbox.addValueChangeListener(event -> refreshGrid());
+            statusFilterCheckboxes.put(status, checkbox);
+            statusFilterLayout.add(checkbox);
+        }
 
         showCompletedCheckbox.addValueChangeListener(event -> refreshGrid());
 
@@ -75,7 +81,7 @@ public class WorkOrderListView extends VerticalLayout {
     }
 
     private HorizontalLayout createToolbar() {
-        HorizontalLayout toolbar = new HorizontalLayout(createButton, statusFilter, showCompletedCheckbox);
+        HorizontalLayout toolbar = new HorizontalLayout(createButton, statusFilterLayout, showCompletedCheckbox);
         toolbar.setWidthFull();
         toolbar.setAlignItems(Alignment.CENTER);
         toolbar.setDefaultVerticalComponentAlignment(Alignment.CENTER);
@@ -128,10 +134,10 @@ public class WorkOrderListView extends VerticalLayout {
     }
 
     private void refreshGrid() {
-        Set<WorkOrderStatus> selectedStatuses = statusFilter.getValue();
-        List<WorkOrderStatus> statusList = selectedStatuses == null || selectedStatuses.isEmpty()
-                ? List.of()
-                : new ArrayList<>(selectedStatuses);
+        List<WorkOrderStatus> statusList = statusFilterCheckboxes.entrySet().stream()
+                .filter(entry -> Boolean.TRUE.equals(entry.getValue().getValue()))
+                .map(Map.Entry::getKey)
+                .collect(Collectors.toList());
         List<WorkOrder> items = workOrderService.findByStatuses(statusList, showCompletedCheckbox.getValue());
         grid.setItems(items);
     }
