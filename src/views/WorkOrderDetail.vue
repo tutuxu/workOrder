@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from "vue";
+import { computed, onMounted, onUnmounted, ref, watch, type Ref } from "vue";
 import dayjs from "dayjs";
 import { useMessage } from "naive-ui";
 import { formatServerDateTime } from "../utils/datetime";
@@ -15,6 +15,13 @@ import {
   type WorkOrderInput,
   type WorkOrderStatus,
 } from "../types";
+import {
+  cycleOption,
+  focusNextElement,
+  insertTextIndent,
+  isCapsLockKey,
+  resolveTextInput,
+} from "../utils/keyboard";
 
 const props = defineProps<{
   workOrder: WorkOrder | null;
@@ -45,6 +52,7 @@ const editingLogId = ref<number | null>(null);
 
 const workOrderGalleryRef = ref<InstanceType<typeof AttachmentGallery> | null>(null);
 const progressGalleryRef = ref<InstanceType<typeof AttachmentGallery> | null>(null);
+const modalContainerRef = ref<HTMLElement | null>(null);
 
 const workOrderId = ref<number | undefined>(props.workOrder?.id ?? undefined);
 const isNew = computed(() => workOrderId.value == null);
@@ -86,6 +94,7 @@ async function loadLogs() {
 }
 
 onMounted(async () => {
+  document.addEventListener("keydown", onGlobalKeydown);
   if (props.workOrder) {
     bindForm(props.workOrder);
     await loadLogs();
@@ -124,15 +133,15 @@ async function save() {
         await workOrderGalleryRef.value?.uploadStaged(workOrderId.value);
       }
       await flushPendingProgress();
-      await loadLogs();
       message.success("已保存");
       emit("saved");
+      close();
     } else {
       await workOrderApi.updateWorkOrder(workOrderId.value!, input);
       await flushPendingProgress();
-      await loadLogs();
       message.success("已保存");
       emit("saved");
+      close();
     }
   } catch (e) {
     message.error(String(e));
@@ -239,6 +248,68 @@ function logKey(log: ProgressLog): string | number {
   return log.id ?? log.createdAt;
 }
 
+function onTextKeydown(e: KeyboardEvent, valueRef: Ref<string>) {
+  insertTextIndent(valueRef, e);
+}
+
+function onTitleKeydown(e: KeyboardEvent) {
+  onTextKeydown(e, title);
+}
+
+function onDescriptionKeydown(e: KeyboardEvent) {
+  onTextKeydown(e, description);
+}
+
+function onWaitingForKeydown(e: KeyboardEvent) {
+  onTextKeydown(e, waitingFor);
+}
+
+function onWaitingReasonKeydown(e: KeyboardEvent) {
+  onTextKeydown(e, waitingReason);
+}
+
+function onProgressTitleKeydown(e: KeyboardEvent) {
+  onTextKeydown(e, progressTitle);
+}
+
+function onProgressContentKeydown(e: KeyboardEvent) {
+  onTextKeydown(e, progressContent);
+}
+
+function onFormKeydown(e: KeyboardEvent) {
+  if (!isCapsLockKey(e)) return;
+  if (resolveTextInput(e.target)) return;
+  e.preventDefault();
+
+  const target = e.target as HTMLElement | null;
+  const radioGroup = target?.closest(".n-radio-group") as HTMLElement | null;
+  if (radioGroup?.contains(document.activeElement)) {
+    if (radioGroup.dataset.field === "status") {
+      status.value = cycleOption(status.value, STATUS_OPTIONS);
+    } else if (radioGroup.dataset.field === "progressStatus") {
+      progressStatus.value = cycleOption(progressStatus.value, STATUS_OPTIONS);
+    }
+    return;
+  }
+
+  const container = modalContainerRef.value;
+  if (container) {
+    focusNextElement(container, e.shiftKey);
+  }
+}
+
+function onGlobalKeydown(e: KeyboardEvent) {
+  if (!show.value || saving.value) return;
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
+    e.preventDefault();
+    void save();
+  }
+}
+
+onUnmounted(() => {
+  document.removeEventListener("keydown", onGlobalKeydown);
+});
+
 </script>
 
 <template>
@@ -249,12 +320,18 @@ function logKey(log: ProgressLog): string | number {
     style="width: 640px"
     @after-leave="close"
   >
+    <div ref="modalContainerRef" @keydown="onFormKeydown">
     <n-form label-placement="top">
       <n-form-item label="标题" required>
-        <n-input v-model:value="title" />
+        <n-input v-model:value="title" @keydown="onTitleKeydown" />
       </n-form-item>
       <n-form-item label="描述">
-        <n-input v-model:value="description" type="textarea" :rows="4" />
+        <n-input
+          v-model:value="description"
+          type="textarea"
+          :rows="4"
+          @keydown="onDescriptionKeydown"
+        />
       </n-form-item>
       <n-form-item label="图片">
         <AttachmentGallery
@@ -264,7 +341,7 @@ function logKey(log: ProgressLog): string | number {
         />
       </n-form-item>
       <n-form-item label="状态">
-        <n-radio-group v-model:value="status">
+        <n-radio-group v-model:value="status" data-field="status">
           <n-space>
             <n-radio
               v-for="opt in STATUS_OPTIONS"
@@ -280,10 +357,10 @@ function logKey(log: ProgressLog): string | number {
       </n-form-item>
       <template v-if="showWaitingFields">
         <n-form-item label="等待对象">
-          <n-input v-model:value="waitingFor" />
+          <n-input v-model:value="waitingFor" @keydown="onWaitingForKeydown" />
         </n-form-item>
         <n-form-item label="等待原因">
-          <n-input v-model:value="waitingReason" />
+          <n-input v-model:value="waitingReason" @keydown="onWaitingReasonKeydown" />
         </n-form-item>
       </template>
     </n-form>
@@ -336,10 +413,14 @@ function logKey(log: ProgressLog): string | number {
     >
       <n-form label-placement="top">
         <n-form-item label="标题" required>
-          <n-input v-model:value="progressTitle" placeholder="过程标题" />
+          <n-input
+            v-model:value="progressTitle"
+            placeholder="过程标题"
+            @keydown="onProgressTitleKeydown"
+          />
         </n-form-item>
         <n-form-item label="状态">
-          <n-radio-group v-model:value="progressStatus">
+          <n-radio-group v-model:value="progressStatus" data-field="progressStatus">
             <n-space>
               <n-radio
                 v-for="opt in STATUS_OPTIONS"
@@ -356,6 +437,7 @@ function logKey(log: ProgressLog): string | number {
             type="textarea"
             :rows="3"
             placeholder="可选，展开后可见"
+            @keydown="onProgressContentKeydown"
           />
         </n-form-item>
         <n-form-item label="图片">
@@ -373,10 +455,11 @@ function logKey(log: ProgressLog): string | number {
         <n-button v-if="editingLogId != null" @click="clearProgressForm">取消</n-button>
       </n-space>
     </n-card>
+    </div>
 
     <template #footer>
       <n-space justify="end">
-        <n-button type="primary" :loading="saving" @click="save">保存</n-button>
+        <n-button type="primary" :loading="saving" @click="save">保存 (Ctrl+S)</n-button>
         <n-popconfirm v-if="!isNew" @positive-click="confirmDelete">
           <template #trigger>
             <n-button type="error">删除</n-button>
