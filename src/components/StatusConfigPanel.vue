@@ -20,6 +20,8 @@ const { load: reloadGlobalConfig } = useStatusConfig();
 
 const loading = ref(false);
 const saving = ref(false);
+const backingUp = ref(false);
+const restoring = ref(false);
 const draft = ref<StatusConfig | null>(null);
 const selectedStatusId = ref<string | null>(null);
 
@@ -176,6 +178,50 @@ async function save() {
     saving.value = false;
   }
 }
+
+async function backup() {
+  backingUp.value = true;
+  try {
+    const savePath = await statusConfigApi.pickStatusConfigSavePath();
+    if (!savePath) return;
+    const result = await statusConfigApi.exportStatusConfig(savePath);
+    message.success(`备份已保存：${result.filePath}`);
+  } catch (error) {
+    message.error(`备份失败：${error}`);
+  } finally {
+    backingUp.value = false;
+  }
+}
+
+function restore() {
+  dialog.warning({
+    title: "确认恢复",
+    content:
+      "将用备份文件替换当前代办状态配置，未保存的修改将丢失。是否继续？",
+    positiveText: "继续恢复",
+    negativeText: "取消",
+    onPositiveClick: () => {
+      void doRestore();
+    },
+  });
+}
+
+async function doRestore() {
+  restoring.value = true;
+  try {
+    const filePath = await statusConfigApi.pickStatusConfigFile();
+    if (!filePath) return;
+    const config = await statusConfigApi.importStatusConfig(filePath);
+    draft.value = toPlainConfig(config);
+    selectedStatusId.value = draft.value.statuses[0]?.id ?? null;
+    await reloadGlobalConfig(true);
+    message.success("代办状态已恢复");
+  } catch (error) {
+    message.error(`恢复失败：${error}`);
+  } finally {
+    restoring.value = false;
+  }
+}
 </script>
 
 <template>
@@ -299,9 +345,13 @@ async function save() {
         </n-gi>
       </n-grid>
 
-      <n-space justify="end" style="margin-top: 16px">
+      <div class="footer-actions">
+        <n-space>
+          <n-button :loading="backingUp" @click="backup">备份...</n-button>
+          <n-button type="error" :loading="restoring" @click="restore">恢复...</n-button>
+        </n-space>
         <n-button type="primary" :loading="saving" @click="save">保存代办状态</n-button>
-      </n-space>
+      </div>
     </n-form>
   </n-spin>
 </template>
@@ -347,5 +397,12 @@ async function save() {
 
 .field-editor {
   margin-top: 8px;
+}
+
+.footer-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 16px;
 }
 </style>

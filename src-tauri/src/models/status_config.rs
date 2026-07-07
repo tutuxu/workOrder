@@ -51,6 +51,13 @@ pub struct StatusDefinition {
     pub fields: Vec<StatusField>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct ExportStatusConfigResult {
+    pub success: bool,
+    pub file_path: String,
+}
+
 /// 数据目录中的 `status_config.json` 根结构。
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]

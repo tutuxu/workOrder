@@ -20,6 +20,10 @@ export const commands = {
 	isWorkOrderOverdue: (workOrder: WorkOrder) => __TAURI_INVOKE<boolean>("is_work_order_overdue", { workOrder }),
 	getStatusConfig: () => __TAURI_INVOKE<StatusConfig>("get_status_config"),
 	saveStatusConfig: (config: StatusConfig) => __TAURI_INVOKE<null>("save_status_config", { config }),
+	pickStatusConfigSavePath: () => __TAURI_INVOKE<string | null>("pick_status_config_save_path"),
+	pickStatusConfigFile: () => __TAURI_INVOKE<string | null>("pick_status_config_file"),
+	exportStatusConfig: (savePath: string) => __TAURI_INVOKE<ExportStatusConfigResult>("export_status_config", { savePath }),
+	importStatusConfig: (filePath: string) => __TAURI_INVOKE<StatusConfig>("import_status_config", { filePath }),
 	/**  列出指定工单下的全部进度日志，按 created_at 降序。 */
 	listProgressLogs: (workOrderId: number) => __TAURI_INVOKE<ProgressLog[]>("list_progress_logs", { workOrderId }),
 	/**  为工单添加进度日志，title 不能为空。 */
@@ -65,6 +69,11 @@ export type ChangeDataDirResult = {
 };
 
 export type ExportBackupResult = {
+	success: boolean,
+	filePath: string,
+};
+
+export type ExportStatusConfigResult = {
 	success: boolean,
 	filePath: string,
 };

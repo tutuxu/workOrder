@@ -1,7 +1,9 @@
 //! 代办状态配置的读写与校验。
 
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
+
+use chrono::Local;
 
 use crate::error::ServiceError;
 use crate::models::status_config::{StatusConfig, DEFAULT_GLASS_COLORS};
@@ -68,6 +70,42 @@ pub fn ensure_default_config(data_dir: &Path) -> Result<(), ServiceError> {
         return Ok(());
     }
     save_config(data_dir, &StatusConfig::default_config())
+}
+
+pub fn default_export_filename() -> String {
+    Local::now()
+        .format("status-config-backup-%Y%m%d-%H%M%S.json")
+        .to_string()
+}
+
+pub fn export_config(data_dir: &Path, save_path: &Path) -> Result<PathBuf, ServiceError> {
+    if save_path.extension().and_then(|e| e.to_str()) != Some("json") {
+        return Err(ServiceError::Validation("备份文件须为 .json 格式".into()));
+    }
+    let config = load_config(data_dir)?;
+    if let Some(parent) = save_path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    let json = serde_json::to_string_pretty(&config)
+        .map_err(|e| ServiceError::Validation(format!("serialize config: {e}")))?;
+    fs::write(save_path, json)?;
+    Ok(save_path.to_path_buf())
+}
+
+pub fn import_config(data_dir: &Path, file_path: &Path) -> Result<StatusConfig, ServiceError> {
+    if !file_path.exists() {
+        return Err(ServiceError::Validation("请选择配置文件".into()));
+    }
+    if file_path.extension().and_then(|e| e.to_str()) != Some("json") {
+        return Err(ServiceError::Validation("配置文件须为 .json 格式".into()));
+    }
+    let content = fs::read_to_string(file_path)?;
+    let config: StatusConfig = serde_json::from_str(&content)
+        .map_err(|e| ServiceError::Validation(format!("状态配置格式错误：{e}")))?;
+    let config = normalize_colors(config);
+    validate_config(&config)?;
+    save_config(data_dir, &config)?;
+    Ok(config)
 }
 
 pub fn save_config(data_dir: &Path, config: &StatusConfig) -> Result<(), ServiceError> {
@@ -239,6 +277,20 @@ mod tests {
         save_config(&dir, &config).unwrap();
         let loaded = load_config(&dir).unwrap();
         assert_eq!(loaded.statuses.len(), 5);
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn export_and_import_roundtrip() {
+        let dir = temp_dir("status-config-export");
+        save_config(&dir, &StatusConfig::default_config()).unwrap();
+        let export_path = dir.join("backup.json");
+        export_config(&dir, &export_path).unwrap();
+        let mut config = StatusConfig::default_config();
+        config.statuses[0].label = "已修改".into();
+        save_config(&dir, &config).unwrap();
+        let restored = import_config(&dir, &export_path).unwrap();
+        assert_eq!(restored.statuses[0].label, "未处置");
         let _ = fs::remove_dir_all(&dir);
     }
 }
