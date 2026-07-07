@@ -50,35 +50,34 @@ fn next_priority(conn: &Connection) -> Result<i32, ServiceError> {
     Ok(max.map(|p| p + 1).unwrap_or(0))
 }
 
-fn format_waiting_reply_log(waiting_for: Option<&str>, waiting_reason: Option<&str>) -> String {
-    let mut content = WorkOrderStatus::WaitingReply.display_name().to_string();
+fn format_waiting_reply_content(waiting_for: Option<&str>, waiting_reason: Option<&str>) -> Option<String> {
     let wf = normalize_text(waiting_for);
     let wr = normalize_text(waiting_reason);
-    if let Some(w) = &wf {
-        content.push_str("：等待 ");
-        content.push_str(w);
+    match (wf, wr) {
+        (Some(w), Some(r)) => Some(format!("等待 {w}，原因 {r}")),
+        (Some(w), None) => Some(format!("等待 {w}")),
+        (None, Some(r)) => Some(format!("原因 {r}")),
+        (None, None) => None,
     }
-    if let Some(r) = &wr {
-        if wf.is_some() {
-            content.push('，');
-        } else {
-            content.push('：');
-        }
-        content.push_str("原因 ");
-        content.push_str(r);
-    }
-    content
 }
 
 fn insert_progress_log(
     conn: &Connection,
     work_order_id: i64,
-    content: &str,
+    title: &str,
+    content: Option<&str>,
+    status: WorkOrderStatus,
 ) -> Result<(), ServiceError> {
     let now = Utc::now().naive_utc();
     conn.execute(
-        "INSERT INTO progress_log (work_order_id, content, created_at) VALUES (?1, ?2, ?3)",
-        params![work_order_id, content, format_datetime(now)],
+        "INSERT INTO progress_log (work_order_id, title, content, status, created_at) VALUES (?1, ?2, ?3, ?4, ?5)",
+        params![
+            work_order_id,
+            title,
+            content,
+            status.as_db_str(),
+            format_datetime(now),
+        ],
     )?;
     Ok(())
 }
@@ -103,11 +102,17 @@ fn append_waiting_reply_progress_log(
         return Ok(());
     }
     let id = after.id.ok_or_else(|| ServiceError::Validation("missing work order id".into()))?;
-    let content = format_waiting_reply_log(
+    let content = format_waiting_reply_content(
         after.waiting_for.as_deref(),
         after.waiting_reason.as_deref(),
     );
-    insert_progress_log(conn, id, &content)
+    insert_progress_log(
+        conn,
+        id,
+        WorkOrderStatus::WaitingReply.display_name(),
+        content.as_deref(),
+        WorkOrderStatus::WaitingReply,
+    )
 }
 
 /// 按 id 获取工单，不存在返回 [`ServiceError::NotFound`]。
@@ -393,7 +398,12 @@ mod tests {
         .unwrap();
         let logs = progress_log_service::find_by_work_order_id(&conn, created.id.unwrap()).unwrap();
         assert_eq!(logs.len(), 1);
-        assert_eq!(logs[0].content, "待回复：等待 联调方，原因 等待接口确认");
+        assert_eq!(logs[0].title, "待回复");
+        assert_eq!(
+            logs[0].content.as_deref(),
+            Some("等待 联调方，原因 等待接口确认")
+        );
+        assert_eq!(logs[0].status, WorkOrderStatus::WaitingReply);
         drop(conn);
         let _ = std::fs::remove_dir_all(dir);
     }

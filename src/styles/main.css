@@ -80,3 +80,39 @@ body {
 .timeline-content {
   flex: 1;
 }
+
+.progress-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+}
+
+.progress-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.progress-time {
+  color: #999;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.progress-body {
+  padding: 4px 0 8px;
+}
+
+.progress-content {
+  margin: 0 0 8px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.progress-empty {
+  color: #999;
+}

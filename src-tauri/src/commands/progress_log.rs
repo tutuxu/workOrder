@@ -3,7 +3,7 @@
 use tauri::State;
 
 use crate::error::ServiceError;
-use crate::models::progress_log::ProgressLog;
+use crate::models::progress_log::{ProgressLog, ProgressLogInput};
 use crate::services::progress_log_service;
 use crate::AppState;
 
@@ -22,29 +22,29 @@ pub fn list_progress_logs(
     progress_log_service::find_by_work_order_id(&conn, work_order_id).map_err(map_err)
 }
 
-/// 为工单添加进度日志，content 不能为空。
+/// 为工单添加进度日志，title 不能为空。
 #[tauri::command]
 #[specta::specta]
 pub fn add_progress_log(
     state: State<'_, AppState>,
     work_order_id: i64,
-    content: String,
+    input: ProgressLogInput,
 ) -> Result<ProgressLog, String> {
     let conn = state.db.lock().map_err(|_| "database lock poisoned".to_string())?;
-    progress_log_service::add_log(&conn, work_order_id, &content).map_err(map_err)
+    progress_log_service::add_log(&conn, work_order_id, &input).map_err(map_err)
 }
 
-/// 更新进度日志内容；log 必须属于指定工单。
+/// 更新进度日志；log 必须属于指定工单。
 #[tauri::command]
 #[specta::specta]
 pub fn update_progress_log(
     state: State<'_, AppState>,
     log_id: i64,
     work_order_id: i64,
-    content: String,
+    input: ProgressLogInput,
 ) -> Result<ProgressLog, String> {
     let conn = state.db.lock().map_err(|_| "database lock poisoned".to_string())?;
-    progress_log_service::update_log(&conn, log_id, work_order_id, &content).map_err(map_err)
+    progress_log_service::update_log(&conn, log_id, work_order_id, &input).map_err(map_err)
 }
 
 /// 删除进度日志；log 必须属于指定工单。

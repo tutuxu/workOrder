@@ -7,7 +7,9 @@ import * as workOrderApi from "../api/workOrders";
 import * as progressLogApi from "../api/progressLogs";
 import {
   STATUS_OPTIONS,
+  statusLabel,
   type ProgressLog,
+  type ProgressLogInput,
   type WorkOrder,
   type WorkOrderInput,
   type WorkOrderStatus,
@@ -34,7 +36,10 @@ const waitingFor = ref("");
 const waitingReason = ref("");
 
 const logs = ref<ProgressLog[]>([]);
-const progressInput = ref("");
+const expandedLogIds = ref<Array<string | number>>([]);
+const progressTitle = ref("");
+const progressContent = ref("");
+const progressStatus = ref<WorkOrderStatus>("IN_PROGRESS");
 const editingLogId = ref<number | null>(null);
 
 const workOrderId = ref<number | undefined>(props.workOrder?.id ?? undefined);
@@ -50,6 +55,21 @@ function bindForm(order: WorkOrder) {
   waitingFor.value = order.waitingFor ?? "";
   waitingReason.value = order.waitingReason ?? "";
   workOrderId.value = order.id ?? undefined;
+}
+
+function buildProgressInput(): ProgressLogInput {
+  return {
+    title: progressTitle.value.trim(),
+    content: progressContent.value.trim() || null,
+    status: progressStatus.value,
+  };
+}
+
+function clearProgressForm() {
+  editingLogId.value = null;
+  progressTitle.value = "";
+  progressContent.value = "";
+  progressStatus.value = "IN_PROGRESS";
 }
 
 async function loadLogs() {
@@ -130,27 +150,27 @@ function close() {
   emit("closed");
 }
 
-function clearEditMode() {
-  editingLogId.value = null;
-  progressInput.value = "";
-}
-
 async function saveProgress() {
   if (workOrderId.value == null) {
     message.warning("请先保存代办事项");
     return;
   }
+  if (!progressTitle.value.trim()) {
+    message.warning("请填写过程标题");
+    return;
+  }
   try {
+    const input = buildProgressInput();
     if (editingLogId.value != null) {
       await progressLogApi.updateProgressLog(
         editingLogId.value,
         workOrderId.value,
-        progressInput.value,
+        input,
       );
-      clearEditMode();
+      clearProgressForm();
     } else {
-      await progressLogApi.addProgressLog(workOrderId.value, progressInput.value);
-      progressInput.value = "";
+      await progressLogApi.addProgressLog(workOrderId.value, input);
+      clearProgressForm();
     }
     await loadLogs();
   } catch (e) {
@@ -159,18 +179,19 @@ async function saveProgress() {
 }
 
 async function flushPendingProgress() {
-  if (!progressInput.value.trim() || workOrderId.value == null) return;
+  if (!progressTitle.value.trim() || workOrderId.value == null) return;
   try {
+    const input = buildProgressInput();
     if (editingLogId.value != null) {
       await progressLogApi.updateProgressLog(
         editingLogId.value,
         workOrderId.value,
-        progressInput.value,
+        input,
       );
-      clearEditMode();
+      clearProgressForm();
     } else {
-      await progressLogApi.addProgressLog(workOrderId.value, progressInput.value);
-      progressInput.value = "";
+      await progressLogApi.addProgressLog(workOrderId.value, input);
+      clearProgressForm();
     }
   } catch (e) {
     message.error(String(e));
@@ -179,7 +200,12 @@ async function flushPendingProgress() {
 
 function startEdit(log: ProgressLog) {
   editingLogId.value = log.id ?? null;
-  progressInput.value = log.content;
+  progressTitle.value = log.title;
+  progressContent.value = log.content ?? "";
+  progressStatus.value = log.status;
+  if (log.id != null && !expandedLogIds.value.includes(log.id)) {
+    expandedLogIds.value = [...expandedLogIds.value, log.id];
+  }
 }
 
 async function deleteProgress(log: ProgressLog) {
@@ -187,12 +213,17 @@ async function deleteProgress(log: ProgressLog) {
   try {
     await progressLogApi.deleteProgressLog(log.id, workOrderId.value);
     if (editingLogId.value === log.id) {
-      clearEditMode();
+      clearProgressForm();
     }
+    expandedLogIds.value = expandedLogIds.value.filter((id) => id !== log.id);
     await loadLogs();
   } catch (e) {
     message.error(String(e));
   }
+}
+
+function logKey(log: ProgressLog): string | number {
+  return log.id ?? log.createdAt;
 }
 
 </script>
@@ -241,32 +272,74 @@ async function deleteProgress(log: ProgressLog) {
     <div v-if="isNew" style="color: #999; margin-bottom: 12px">保存后可追加处置过程</div>
     <template v-else>
       <div v-if="logs.length === 0" style="color: #999; margin-bottom: 12px">暂无过程记录</div>
-      <div v-for="log in logs" :key="log.id ?? log.createdAt" class="timeline-entry">
-        <span class="timeline-content">
-          {{ formatServerDateTime(log.createdAt) }} — {{ log.content }}
-        </span>
-        <n-button text type="primary" @click="startEdit(log)">编辑</n-button>
-        <n-popconfirm @positive-click="deleteProgress(log)">
-          <template #trigger>
-            <n-button text type="error">删除</n-button>
+      <n-collapse v-else v-model:expanded-names="expandedLogIds">
+        <n-collapse-item
+          v-for="log in logs"
+          :key="logKey(log)"
+          :name="logKey(log)"
+        >
+          <template #header>
+            <div class="progress-header">
+              <span class="progress-title">{{ log.title }}</span>
+              <n-tag size="small" :bordered="false">{{ statusLabel(log.status) }}</n-tag>
+              <span class="progress-time">{{ formatServerDateTime(log.createdAt) }}</span>
+            </div>
           </template>
-          确定删除该过程记录吗？
-        </n-popconfirm>
-      </div>
+          <div class="progress-body">
+            <p v-if="log.content" class="progress-content">{{ log.content }}</p>
+            <p v-else class="progress-content progress-empty">暂无详细内容</p>
+            <n-space>
+              <n-button text type="primary" @click="startEdit(log)">编辑</n-button>
+              <n-popconfirm @positive-click="deleteProgress(log)">
+                <template #trigger>
+                  <n-button text type="error">删除</n-button>
+                </template>
+                确定删除该过程记录吗？
+              </n-popconfirm>
+            </n-space>
+          </div>
+        </n-collapse-item>
+      </n-collapse>
     </template>
 
-    <n-space style="margin-top: 12px" align="center">
-      <n-input
-        v-model:value="progressInput"
-        placeholder="追加过程"
-        style="flex: 1"
-        @keyup.enter="saveProgress"
-      />
-      <n-button @click="saveProgress">
-        {{ editingLogId != null ? "保存修改" : "追加" }}
-      </n-button>
-      <n-button v-if="editingLogId != null" @click="clearEditMode">取消</n-button>
-    </n-space>
+    <n-card
+      v-if="!isNew"
+      size="small"
+      :title="editingLogId != null ? '编辑过程' : '追加过程'"
+      style="margin-top: 12px"
+    >
+      <n-form label-placement="top">
+        <n-form-item label="标题" required>
+          <n-input v-model:value="progressTitle" placeholder="过程标题" />
+        </n-form-item>
+        <n-form-item label="状态">
+          <n-radio-group v-model:value="progressStatus">
+            <n-space>
+              <n-radio
+                v-for="opt in STATUS_OPTIONS"
+                :key="opt.value"
+                :value="opt.value"
+                :label="opt.label"
+              />
+            </n-space>
+          </n-radio-group>
+        </n-form-item>
+        <n-form-item label="详细内容">
+          <n-input
+            v-model:value="progressContent"
+            type="textarea"
+            :rows="3"
+            placeholder="可选，展开后可见"
+          />
+        </n-form-item>
+      </n-form>
+      <n-space>
+        <n-button type="primary" @click="saveProgress">
+          {{ editingLogId != null ? "保存修改" : "追加" }}
+        </n-button>
+        <n-button v-if="editingLogId != null" @click="clearProgressForm">取消</n-button>
+      </n-space>
+    </n-card>
 
     <template #footer>
       <n-space justify="end">

@@ -14,7 +14,9 @@ CREATE TABLE IF NOT EXISTS work_order (
 CREATE TABLE IF NOT EXISTS progress_log (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     work_order_id INTEGER NOT NULL,
-    content TEXT NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    content TEXT,
+    status VARCHAR(50) NOT NULL DEFAULT 'NOT_STARTED',
     created_at TIMESTAMP NOT NULL,
     FOREIGN KEY (work_order_id) REFERENCES work_order(id) ON DELETE CASCADE
 );

@@ -2,6 +2,7 @@ import type { WorkOrderStatus } from "./bindings";
 
 export type {
   ProgressLog,
+  ProgressLogInput,
   WorkOrder,
   WorkOrderInput,
   WorkOrderStatus,

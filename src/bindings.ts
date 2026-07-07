@@ -20,10 +20,10 @@ export const commands = {
 	isWorkOrderOverdue: (workOrder: WorkOrder) => __TAURI_INVOKE<boolean>("is_work_order_overdue", { workOrder }),
 	/**  列出指定工单下的全部进度日志，按 created_at 降序。 */
 	listProgressLogs: (workOrderId: number) => __TAURI_INVOKE<ProgressLog[]>("list_progress_logs", { workOrderId }),
-	/**  为工单添加进度日志，content 不能为空。 */
-	addProgressLog: (workOrderId: number, content: string) => __TAURI_INVOKE<ProgressLog>("add_progress_log", { workOrderId, content }),
-	/**  更新进度日志内容；log 必须属于指定工单。 */
-	updateProgressLog: (logId: number, workOrderId: number, content: string) => __TAURI_INVOKE<ProgressLog>("update_progress_log", { logId, workOrderId, content }),
+	/**  为工单添加进度日志，title 不能为空。 */
+	addProgressLog: (workOrderId: number, input: ProgressLogInput) => __TAURI_INVOKE<ProgressLog>("add_progress_log", { workOrderId, input }),
+	/**  更新进度日志；log 必须属于指定工单。 */
+	updateProgressLog: (logId: number, workOrderId: number, input: ProgressLogInput) => __TAURI_INVOKE<ProgressLog>("update_progress_log", { logId, workOrderId, input }),
 	/**  删除进度日志；log 必须属于指定工单。 */
 	deleteProgressLog: (logId: number, workOrderId: number) => __TAURI_INVOKE<null>("delete_progress_log", { logId, workOrderId }),
 	getSettings: () => __TAURI_INVOKE<SettingsInfo>("get_settings"),
@@ -43,8 +43,17 @@ export type ChangeDataDirResult = {
 export type ProgressLog = {
 	id: number | null,
 	workOrderId: number,
-	content: string,
+	title: string,
+	content: string | null,
+	status: WorkOrderStatus,
 	createdAt: string,
+};
+
+/**  创建或更新进度记录时的输入。 */
+export type ProgressLogInput = {
+	title: string,
+	content: string | null,
+	status: WorkOrderStatus,
 };
 
 export type SettingsInfo = {

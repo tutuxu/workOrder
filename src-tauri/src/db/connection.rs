@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 
 use rusqlite::Connection;
 
+use crate::db::migrate;
 use crate::error::ServiceError;
 
 const SCHEMA_SQL: &str = include_str!("schema.sql");
@@ -64,6 +65,7 @@ pub fn open_connection(data_dir: &Path) -> Result<Connection, ServiceError> {
     let db_path = data_dir.join("workorder.db");
     let conn = Connection::open(&db_path)?;
     conn.execute_batch(SCHEMA_SQL)?;
+    migrate::migrate_progress_log(&conn)?;
     Ok(conn)
 }
 

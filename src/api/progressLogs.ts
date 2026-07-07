@@ -1,7 +1,7 @@
 import { commands } from "../bindings";
-import type { ProgressLog } from "../bindings";
+import type { ProgressLog, ProgressLogInput } from "../bindings";
 
-export type { ProgressLog };
+export type { ProgressLog, ProgressLogInput };
 
 export function listProgressLogs(workOrderId: number): Promise<ProgressLog[]> {
   return commands.listProgressLogs(workOrderId);
@@ -9,17 +9,17 @@ export function listProgressLogs(workOrderId: number): Promise<ProgressLog[]> {
 
 export function addProgressLog(
   workOrderId: number,
-  content: string,
+  input: ProgressLogInput,
 ): Promise<ProgressLog> {
-  return commands.addProgressLog(workOrderId, content);
+  return commands.addProgressLog(workOrderId, input);
 }
 
 export function updateProgressLog(
   logId: number,
   workOrderId: number,
-  content: string,
+  input: ProgressLogInput,
 ): Promise<ProgressLog> {
-  return commands.updateProgressLog(logId, workOrderId, content);
+  return commands.updateProgressLog(logId, workOrderId, input);
 }
 
 export function deleteProgressLog(
