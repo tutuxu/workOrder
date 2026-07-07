@@ -21,9 +21,22 @@ npm install
 # 启动 Tauri 开发模式（热重载，debug 时自动更新 src/bindings.ts）
 npm run tauri dev
 
-# 仅启动前端 Vite（不启动 Rust 后端，一般不需要）
+# 仅启动前端 Vite（浏览器调试，不启动 Rust 后端）
 npm run dev
+
+# 预览生产构建（正式环境本地预览）
+npm run build && npm run preview
 ```
+
+### 默认端口
+
+| 环境 | 命令 | 默认端口 | 说明 |
+|------|------|----------|------|
+| 测试（Tauri dev） | `npm run tauri dev` | **1420** | Tauri 窗口加载此端口，由 `dev:tauri` 启动 |
+| 测试（浏览器） | `npm run dev` | **5173** | 独立前端开发，避免占用 1420 |
+| 正式（预览） | `npm run preview` | **6842** | 预览 `dist/` 构建产物 |
+
+端口可在 `.env.tauri`、`.env.development`、`.env.production` 中通过 `VITE_DEV_PORT` / `VITE_PREVIEW_PORT` 覆盖；修改测试端口后须同步更新 `src-tauri/tauri.conf.json` 中的 `devUrl`。
 
 开发数据文件：`data/workorder.db`（项目根目录）。
 
