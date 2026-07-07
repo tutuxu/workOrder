@@ -5,19 +5,21 @@ import { invoke as __TAURI_INVOKE } from "@tauri-apps/api/core";
 /** Commands */
 export const commands = {
 	/**  按状态筛选工单列表，按 priority 升序、updated_at 降序排列；`query` 为空时不做文本筛选。 */
-	listWorkOrders: (statuses: string[], includeCompleted: boolean, query: string) => __TAURI_INVOKE<WorkOrder[]>("list_work_orders", { statuses, includeCompleted, query }),
+	listWorkOrders: (statuses: string[], query: string) => __TAURI_INVOKE<WorkOrder[]>("list_work_orders", { statuses, query }),
 	/**  按 id 获取单条工单，不存在时返回 `NOT_FOUND`。 */
 	getWorkOrder: (id: number) => __TAURI_INVOKE<WorkOrder>("get_work_order", { id }),
 	/**  创建工单；title 必填，priority 自动递增。 */
 	createWorkOrder: (input: WorkOrderInput) => __TAURI_INVOKE<WorkOrder>("create_work_order", { input }),
-	/**  更新工单；若进入或变更「待回复」状态，会自动追加进度日志。 */
+	/**  更新工单。 */
 	updateWorkOrder: (id: number, input: WorkOrderInput) => __TAURI_INVOKE<WorkOrder>("update_work_order", { id, input }),
 	/**  删除工单及其全部进度日志。 */
 	deleteWorkOrder: (id: number) => __TAURI_INVOKE<null>("delete_work_order", { id }),
 	/**  按给定 id 顺序批量更新 priority（用于拖拽排序）。 */
 	updatePriorities: (orderedIds: number[]) => __TAURI_INVOKE<null>("update_priorities", { orderedIds }),
-	/**  判断工单是否逾期（有 due_date、未完成且早于当前时间）。 */
+	/**  判断工单是否逾期（有 due_date 且早于当前时间）。 */
 	isWorkOrderOverdue: (workOrder: WorkOrder) => __TAURI_INVOKE<boolean>("is_work_order_overdue", { workOrder }),
+	getStatusConfig: () => __TAURI_INVOKE<StatusConfig>("get_status_config"),
+	saveStatusConfig: (config: StatusConfig) => __TAURI_INVOKE<null>("save_status_config", { config }),
 	/**  列出指定工单下的全部进度日志，按 created_at 降序。 */
 	listProgressLogs: (workOrderId: number) => __TAURI_INVOKE<ProgressLog[]>("list_progress_logs", { workOrderId }),
 	/**  为工单添加进度日志，title 不能为空。 */
@@ -80,7 +82,7 @@ export type ProgressLog = {
 	workOrderId: number,
 	title: string,
 	content: string | null,
-	status: WorkOrderStatus,
+	status: string,
 	createdAt: string,
 };
 
@@ -88,7 +90,7 @@ export type ProgressLog = {
 export type ProgressLogInput = {
 	title: string,
 	content: string | null,
-	status: WorkOrderStatus,
+	status: string,
 };
 
 export type SettingsInfo = {
@@ -98,15 +100,39 @@ export type SettingsInfo = {
 	defaultDataDir: string,
 };
 
+/**  数据目录中的 `status_config.json` 根结构。 */
+export type StatusConfig = {
+	version: number,
+	statuses: StatusDefinition[],
+};
+
+/**  单个代办状态定义。 */
+export type StatusDefinition = {
+	id: string,
+	label: string,
+	order: number,
+	fields: StatusField[],
+};
+
+/**  某状态下的一条可填字段。 */
+export type StatusField = {
+	key: string,
+	label: string,
+	type: StatusFieldType,
+	required: boolean,
+};
+
+/**  状态字段类型。 */
+export type StatusFieldType = "text" | "textarea" | "date";
+
 /**  工单完整记录（含 id、priority 与时间戳）。 */
 export type WorkOrder = {
 	id: number | null,
 	title: string,
 	description: string | null,
-	status: WorkOrderStatus,
+	status: string,
 	priority: number,
-	waitingFor: string | null,
-	waitingReason: string | null,
+	extraFields: { [key in string]: string } | null,
 	dueDate: string | null,
 	createdAt: string,
 	updatedAt: string,
@@ -116,12 +142,8 @@ export type WorkOrder = {
 export type WorkOrderInput = {
 	title: string,
 	description: string | null,
-	status: WorkOrderStatus,
-	waitingFor: string | null,
-	waitingReason: string | null,
+	status: string,
+	extraFields: { [key in string]: string } | null,
 	dueDate: string | null,
 };
-
-/**  工单生命周期状态，与数据库 `VARCHAR` 及前端 `WorkOrderStatus` 对齐。 */
-export type WorkOrderStatus = "NOT_STARTED" | "IN_PROGRESS" | "WAITING_REPLY" | "COMPLETED";
 

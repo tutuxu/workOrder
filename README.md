@@ -50,8 +50,8 @@ portable/
 
 | 文件 | 说明 |
 |------|------|
-| `workOrder_1.0.0_x64-setup.exe` | NSIS 安装程序，推荐；会自动处理 WebView2 |
-| `workOrder_1.0.0_x64_en-US.msi` | MSI 安装包 |
+| `workOrder_1.1.0_x64-setup.exe` | NSIS 安装程序，推荐；会自动处理 WebView2 |
+| `workOrder_1.1.0_x64_en-US.msi` | MSI 安装包 |
 
 安装后从开始菜单或桌面快捷方式启动。数据默认保存在安装目录旁的 `data/` 下。
 
@@ -59,7 +59,18 @@ portable/
 
 ## 版本升级指南（最终用户）
 
-当前版本**不会自动更新**，需要手动下载新版本并覆盖安装。升级后首次启动时，程序会自动迁移数据库结构，**无需手动改数据库**。
+当前版本**不会自动更新**，需要手动下载新版本并覆盖安装。从 **v1.0 升级到 1.1** 的详细说明见 **[docs/upgrade/v1.0-to-1.1.md](docs/upgrade/v1.0-to-1.1.md)**。
+
+升级后首次启动时，程序会自动迁移数据库并生成 `status_config.json`，**无需手动改数据库**。
+
+### 从 v1.0 快速升级（摘要）
+
+1. （推荐）在 v1.0 **设置 → 备份** 导出 ZIP，或复制 `data/` 文件夹
+2. **完全退出** workOrder
+3. 用 v1.1 安装包覆盖安装，或仅用新 `workOrder.exe` 替换旧 exe（**保留 `data/`**）
+4. 启动 v1.1 — 自动完成迁移
+
+可选：便携包中双击 **`迁移数据.bat`**，在不打开主界面的情况下先迁移（与启动时逻辑相同）。
 
 ### 升级前
 
@@ -89,6 +100,8 @@ portable/
 | 内容 | 是否保留 |
 |------|----------|
 | `data/workorder.db`（代办与处置过程） | 保留 |
+| `data/status_config.json`（v1.1 新增，首次启动自动生成） | 保留或新建 |
+| `data/attachments/`（图片附件） | 保留 |
 | `settings.json`（若存在，记录自定义数据目录） | 保留 |
 | 程序 exe | 替换为新版本 |
 
@@ -104,10 +117,14 @@ portable/
 ```
 portable/
 ├── workOrder.exe          ← 仅替换此文件
+├── workOrder-migrate.exe  ← v1.1 新增（可选）
 ├── 启动 workOrder.bat
+├── 迁移数据.bat           ← v1.1 新增（可选）
 ├── settings.json          ← 保留（若存在）
 └── data/                  ← 保留
-    └── workorder.db
+    ├── workorder.db
+    ├── attachments/       ← 若有图片附件
+    └── status_config.json ← v1.1 首次启动后生成
 ```
 
 ### 从安装版切换到便携版（可选）
@@ -183,8 +200,8 @@ release/
 │   ├── 启动 workOrder.bat
 │   └── data/
 └── installer/             # 安装包
-    ├── workOrder_1.0.0_x64-setup.exe
-    └── workOrder_1.0.0_x64_en-US.msi
+    ├── workOrder_1.1.0_x64-setup.exe
+    └── workOrder_1.1.0_x64_en-US.msi
 ```
 
 将 **`release/portable`** 文件夹压缩为 zip 即可分享给他人一键运行。

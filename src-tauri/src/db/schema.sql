@@ -6,6 +6,7 @@ CREATE TABLE IF NOT EXISTS work_order (
     priority INTEGER NOT NULL DEFAULT 0,
     waiting_for VARCHAR(255),
     waiting_reason VARCHAR(255),
+    extra_fields TEXT,
     due_date TIMESTAMP,
     created_at TIMESTAMP NOT NULL,
     updated_at TIMESTAMP NOT NULL

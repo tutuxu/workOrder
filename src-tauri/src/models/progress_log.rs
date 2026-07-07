@@ -4,8 +4,6 @@ use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
 use specta::Type;
 
-use crate::models::work_order_status::WorkOrderStatus;
-
 /// 工单下的单条进度记录。
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
@@ -14,7 +12,7 @@ pub struct ProgressLog {
     pub work_order_id: i64,
     pub title: String,
     pub content: Option<String>,
-    pub status: WorkOrderStatus,
+    pub status: String,
     pub created_at: NaiveDateTime,
 }
 
@@ -24,5 +22,5 @@ pub struct ProgressLog {
 pub struct ProgressLogInput {
     pub title: String,
     pub content: Option<String>,
-    pub status: WorkOrderStatus,
+    pub status: String,
 }

@@ -42,6 +42,59 @@ pub fn migrate_progress_log(conn: &Connection) -> Result<(), ServiceError> {
     Ok(())
 }
 
+/// 将 legacy waiting 列迁移至 extra_fields JSON。
+pub fn migrate_extra_fields(conn: &Connection) -> Result<(), ServiceError> {
+    if !column_exists(conn, "work_order", "extra_fields")? {
+        conn.execute("ALTER TABLE work_order ADD COLUMN extra_fields TEXT", [])?;
+    }
+
+    let mut stmt = conn.prepare(
+        "SELECT id, waiting_for, waiting_reason, extra_fields FROM work_order",
+    )?;
+    let rows = stmt.query_map([], |row| {
+        Ok((
+            row.get::<_, i64>(0)?,
+            row.get::<_, Option<String>>(1)?,
+            row.get::<_, Option<String>>(2)?,
+            row.get::<_, Option<String>>(3)?,
+        ))
+    })?;
+
+    for row in rows {
+        let (id, waiting_for, waiting_reason, extra_fields) = row?;
+        if extra_fields.as_deref().is_some_and(|s| !s.trim().is_empty()) {
+            continue;
+        }
+        let wf = waiting_for
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty());
+        let wr = waiting_reason
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty());
+        if wf.is_none() && wr.is_none() {
+            continue;
+        }
+        let mut map = serde_json::Map::new();
+        if let Some(v) = wf {
+            map.insert("waitingFor".into(), serde_json::Value::String(v.to_string()));
+        }
+        if let Some(v) = wr {
+            map.insert(
+                "waitingReason".into(),
+                serde_json::Value::String(v.to_string()),
+            );
+        }
+        let json = serde_json::Value::Object(map).to_string();
+        conn.execute(
+            "UPDATE work_order SET extra_fields = ?1 WHERE id = ?2",
+            rusqlite::params![json, id],
+        )?;
+    }
+    Ok(())
+}
+
 /// 确保 attachment 表存在（存量库升级）。
 pub fn migrate_attachment(conn: &Connection) -> Result<(), ServiceError> {
     conn.execute_batch(
@@ -58,4 +111,42 @@ pub fn migrate_attachment(conn: &Connection) -> Result<(), ServiceError> {
         CREATE INDEX IF NOT EXISTS idx_attachment_owner ON attachment(owner_type, owner_id);",
     )?;
     Ok(())
+}
+
+#[cfg(test)]
+mod extra_fields_tests {
+    use super::*;
+    use crate::db::connection::open_connection;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn temp_dir(prefix: &str) -> std::path::PathBuf {
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        std::env::temp_dir().join(format!("{prefix}-{nanos}"))
+    }
+
+    #[test]
+    fn migrates_waiting_columns() {
+        let dir = temp_dir("migrate-extra");
+        let conn = open_connection(&dir).unwrap();
+        conn.execute(
+            "INSERT INTO work_order (title, description, status, priority, waiting_for, waiting_reason, due_date, created_at, updated_at)
+             VALUES ('Legacy', NULL, 'WAITING_REPLY', 0, '运维组', '排期', NULL, datetime('now'), datetime('now'))",
+            [],
+        )
+        .unwrap();
+        migrate_extra_fields(&conn).unwrap();
+        let json: String = conn
+            .query_row(
+                "SELECT extra_fields FROM work_order WHERE title = 'Legacy'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert!(json.contains("waitingFor"));
+        assert!(json.contains("运维组"));
+        let _ = std::fs::remove_dir_all(dir);
+    }
 }

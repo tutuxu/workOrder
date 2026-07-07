@@ -6,14 +6,13 @@ import { formatServerDateTime } from "../utils/datetime";
 import * as workOrderApi from "../api/workOrders";
 import * as progressLogApi from "../api/progressLogs";
 import AttachmentGallery from "../components/AttachmentGallery.vue";
-import {
-  STATUS_OPTIONS,
-  statusLabel,
-  type ProgressLog,
-  type ProgressLogInput,
-  type WorkOrder,
-  type WorkOrderInput,
-  type WorkOrderStatus,
+import { useStatusConfig } from "../composables/useStatusConfig";
+import type {
+  ProgressLog,
+  ProgressLogInput,
+  StatusField,
+  WorkOrder,
+  WorkOrderInput,
 } from "../types";
 import {
   cycleOption,
@@ -33,21 +32,28 @@ const emit = defineEmits<{
 }>();
 
 const message = useMessage();
+const {
+  statusOptions,
+  statusLabel,
+  fieldsForStatus,
+  defaultStatus,
+  load: loadStatusConfig,
+} = useStatusConfig();
+
 const show = ref(true);
 const saving = ref(false);
 
 const title = ref("");
 const description = ref("");
-const status = ref<WorkOrderStatus>("NOT_STARTED");
+const status = ref("NOT_STARTED");
 const dueDate = ref<number | null>(null);
-const waitingFor = ref("");
-const waitingReason = ref("");
+const extraFieldValues = ref<Record<string, string>>({});
 
 const logs = ref<ProgressLog[]>([]);
 const expandedLogIds = ref<Array<string | number>>([]);
 const progressTitle = ref("");
 const progressContent = ref("");
-const progressStatus = ref<WorkOrderStatus>("IN_PROGRESS");
+const progressStatus = ref("IN_PROGRESS");
 const editingLogId = ref<number | null>(null);
 const showProgressForm = ref(false);
 
@@ -57,17 +63,85 @@ const modalContainerRef = ref<HTMLElement | null>(null);
 
 const workOrderId = ref<number | undefined>(props.workOrder?.id ?? undefined);
 const isNew = computed(() => workOrderId.value == null);
-const showWaitingFields = computed(() => status.value === "WAITING_REPLY");
 const modalTitle = computed(() => (isNew.value ? "新建代办" : "编辑代办"));
+const activeFields = computed(() => fieldsForStatus(status.value));
 
 function bindForm(order: WorkOrder) {
   title.value = order.title ?? "";
   description.value = order.description ?? "";
-  status.value = order.status ?? "NOT_STARTED";
+  status.value = order.status ?? defaultStatus();
   dueDate.value = order.dueDate ? dayjs(order.dueDate).valueOf() : null;
-  waitingFor.value = order.waitingFor ?? "";
-  waitingReason.value = order.waitingReason ?? "";
+  extraFieldValues.value = { ...(order.extraFields ?? {}) };
   workOrderId.value = order.id ?? undefined;
+}
+
+function resetForNew() {
+  title.value = "";
+  description.value = "";
+  status.value = defaultStatus();
+  dueDate.value = null;
+  extraFieldValues.value = {};
+  workOrderId.value = undefined;
+}
+
+function getExtraFieldText(key: string): string {
+  return extraFieldValues.value[key] ?? "";
+}
+
+function setExtraFieldText(key: string, value: string) {
+  extraFieldValues.value = { ...extraFieldValues.value, [key]: value };
+}
+
+function getExtraFieldDate(key: string): number | null {
+  const raw = extraFieldValues.value[key];
+  if (!raw) return null;
+  const parsed = dayjs(raw);
+  return parsed.isValid() ? parsed.valueOf() : null;
+}
+
+function setExtraFieldDate(key: string, value: number | null) {
+  const next = { ...extraFieldValues.value };
+  if (value == null) {
+    delete next[key];
+  } else {
+    next[key] = dayjs(value).format("YYYY-MM-DDTHH:mm:ss");
+  }
+  extraFieldValues.value = next;
+}
+
+function onExtraFieldKeydown(e: KeyboardEvent, key: string) {
+  const fieldRef: Ref<string> = {
+    get value() {
+      return extraFieldValues.value[key] ?? "";
+    },
+    set value(v: string) {
+      setExtraFieldText(key, v);
+    },
+  } as Ref<string>;
+  insertTextIndent(fieldRef, e);
+}
+
+function buildExtraFieldsPayload(): Record<string, string> | null {
+  const payload: Record<string, string> = {};
+  for (const field of activeFields.value) {
+    const value = extraFieldValues.value[field.key]?.trim();
+    if (value) {
+      payload[field.key] = value;
+    }
+  }
+  return Object.keys(payload).length > 0 ? payload : null;
+}
+
+function validateExtraFieldsClient(): boolean {
+  for (const field of activeFields.value) {
+    if (!field.required) continue;
+    const value = extraFieldValues.value[field.key]?.trim();
+    if (!value) {
+      message.warning(`请填写${field.label}`);
+      return false;
+    }
+  }
+  return true;
 }
 
 function buildProgressInput(): ProgressLogInput {
@@ -78,11 +152,17 @@ function buildProgressInput(): ProgressLogInput {
   };
 }
 
+function defaultProgressStatus(): string {
+  const options = statusOptions.value;
+  const inProgress = options.find((o) => o.value === "IN_PROGRESS");
+  return inProgress?.value ?? options[0]?.value ?? defaultStatus();
+}
+
 function clearProgressForm() {
   editingLogId.value = null;
   progressTitle.value = "";
   progressContent.value = "";
-  progressStatus.value = "IN_PROGRESS";
+  progressStatus.value = defaultProgressStatus();
   progressGalleryRef.value?.clearStaged();
   showProgressForm.value = false;
 }
@@ -91,7 +171,7 @@ function openProgressForm() {
   editingLogId.value = null;
   progressTitle.value = "";
   progressContent.value = "";
-  progressStatus.value = "IN_PROGRESS";
+  progressStatus.value = defaultProgressStatus();
   progressGalleryRef.value?.clearStaged();
   showProgressForm.value = true;
 }
@@ -106,9 +186,12 @@ async function loadLogs() {
 
 onMounted(async () => {
   document.addEventListener("keydown", onGlobalKeydown);
+  await loadStatusConfig();
   if (props.workOrder) {
     bindForm(props.workOrder);
     await loadLogs();
+  } else {
+    resetForNew();
   }
 });
 
@@ -127,13 +210,13 @@ function buildInput(): WorkOrderInput {
     title: title.value,
     description: description.value || null,
     status: status.value,
-    waitingFor: waitingFor.value || null,
-    waitingReason: waitingReason.value || null,
+    extraFields: buildExtraFieldsPayload(),
     dueDate: dueDate.value ? dayjs(dueDate.value).format("YYYY-MM-DDTHH:mm:ss") : null,
   };
 }
 
 async function save() {
+  if (!validateExtraFieldsClient()) return;
   saving.value = true;
   try {
     const input = buildInput();
@@ -272,14 +355,6 @@ function onDescriptionKeydown(e: KeyboardEvent) {
   onTextKeydown(e, description);
 }
 
-function onWaitingForKeydown(e: KeyboardEvent) {
-  onTextKeydown(e, waitingFor);
-}
-
-function onWaitingReasonKeydown(e: KeyboardEvent) {
-  onTextKeydown(e, waitingReason);
-}
-
 function onProgressTitleKeydown(e: KeyboardEvent) {
   onTextKeydown(e, progressTitle);
 }
@@ -297,9 +372,9 @@ function onFormKeydown(e: KeyboardEvent) {
   const radioGroup = target?.closest(".n-radio-group") as HTMLElement | null;
   if (radioGroup?.contains(document.activeElement)) {
     if (radioGroup.dataset.field === "status") {
-      status.value = cycleOption(status.value, STATUS_OPTIONS);
+      status.value = cycleOption(status.value, statusOptions.value);
     } else if (radioGroup.dataset.field === "progressStatus") {
-      progressStatus.value = cycleOption(progressStatus.value, STATUS_OPTIONS);
+      progressStatus.value = cycleOption(progressStatus.value, statusOptions.value);
     }
     return;
   }
@@ -322,6 +397,9 @@ onUnmounted(() => {
   document.removeEventListener("keydown", onGlobalKeydown);
 });
 
+function fieldInputType(field: StatusField): "text" | "textarea" {
+  return field.type === "textarea" ? "textarea" : "text";
+}
 </script>
 
 <template>
@@ -358,7 +436,7 @@ onUnmounted(() => {
         <n-radio-group v-model:value="status" data-field="status">
           <n-space>
             <n-radio
-              v-for="opt in STATUS_OPTIONS"
+              v-for="opt in statusOptions"
               :key="opt.value"
               :value="opt.value"
               :label="opt.label"
@@ -369,12 +447,24 @@ onUnmounted(() => {
       <n-form-item label="计划完成时间">
         <n-date-picker v-model:value="dueDate" type="datetime" clearable style="width: 100%" />
       </n-form-item>
-      <template v-if="showWaitingFields">
-        <n-form-item label="等待对象">
-          <n-input v-model:value="waitingFor" @keydown="onWaitingForKeydown" />
-        </n-form-item>
-        <n-form-item label="等待原因">
-          <n-input v-model:value="waitingReason" @keydown="onWaitingReasonKeydown" />
+      <template v-for="field in activeFields" :key="field.key">
+        <n-form-item :label="field.label" :required="field.required">
+          <n-date-picker
+            v-if="field.type === 'date'"
+            :value="getExtraFieldDate(field.key)"
+            type="datetime"
+            clearable
+            style="width: 100%"
+            @update:value="(v: number | null) => setExtraFieldDate(field.key, v)"
+          />
+          <n-input
+            v-else
+            :value="getExtraFieldText(field.key)"
+            :type="fieldInputType(field)"
+            :rows="field.type === 'textarea' ? 3 : undefined"
+            @update:value="(v: string) => setExtraFieldText(field.key, v)"
+            @keydown="(e: KeyboardEvent) => onExtraFieldKeydown(e, field.key)"
+          />
         </n-form-item>
       </template>
     </n-form>
@@ -446,7 +536,7 @@ onUnmounted(() => {
           <n-radio-group v-model:value="progressStatus" data-field="progressStatus">
             <n-space>
               <n-radio
-                v-for="opt in STATUS_OPTIONS"
+                v-for="opt in statusOptions"
                 :key="opt.value"
                 :value="opt.value"
                 :label="opt.label"

@@ -24,6 +24,16 @@ if errorlevel 1 (
     exit /b 1
 )
 
+echo Building migration tool...
+pushd src-tauri
+call cargo build --release --bin workorder-migrate
+if errorlevel 1 (
+    popd
+    echo Migration tool build failed.
+    exit /b 1
+)
+popd
+
 echo.
 echo [2/3] Creating portable one-click package...
 if exist "%LOCAL_RELEASE%" rmdir /s /q "%LOCAL_RELEASE%"
@@ -38,11 +48,36 @@ if not exist "src-tauri\target\release\workorder.exe" (
 
 copy /Y "src-tauri\target\release\workorder.exe" "%PORTABLE_DIR%\workOrder.exe" >nul
 
+if exist "src-tauri\target\release\workorder-migrate.exe" (
+    copy /Y "src-tauri\target\release\workorder-migrate.exe" "%PORTABLE_DIR%\workOrder-migrate.exe" >nul
+)
+
 (
     echo @echo off
     echo cd /d "%%~dp0"
     echo start "" "workOrder.exe"
 ) > "%PORTABLE_DIR%\启动 workOrder.bat"
+
+(
+    echo @echo off
+    echo chcp 65001 ^>nul
+    echo cd /d "%%~dp0"
+    echo echo workOrder v1.0 数据迁移工具
+    echo echo.
+    echo if not exist "data\workorder.db" ^(
+    echo   echo 未找到 data\workorder.db，请确认 data 目录位置。
+    echo   pause
+    echo   exit /b 1
+    echo ^)
+    echo if not exist "workOrder-migrate.exe" ^(
+    echo   echo 缺少 workOrder-migrate.exe，请使用完整 portable 包。
+    echo   pause
+    echo   exit /b 1
+    echo ^)
+    echo workOrder-migrate.exe --data-dir "%%~dp0data"
+    echo echo.
+    echo pause
+) > "%PORTABLE_DIR%\迁移数据.bat"
 
 echo.
 echo [3/3] Copying installers...

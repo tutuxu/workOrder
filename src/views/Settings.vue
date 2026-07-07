@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from "vue";
 import { useDialog, useMessage } from "naive-ui";
 import * as settingsApi from "../api/settings";
+import StatusConfigPanel from "../components/StatusConfigPanel.vue";
 
 const emit = defineEmits<{
   closed: [];
@@ -137,7 +138,7 @@ function close() {
     v-model:show="show"
     preset="card"
     title="设置"
-    style="width: 560px"
+    style="width: 720px"
     @after-leave="close"
   >
     <n-spin :show="loading">
@@ -154,6 +155,12 @@ function close() {
         <n-text v-if="settingsPath" depth="3" style="display: block; font-size: 12px; margin-bottom: 16px">
           配置文件：{{ settingsPath }}
         </n-text>
+
+        <n-divider />
+
+        <n-form-item label="代办状态">
+          <StatusConfigPanel />
+        </n-form-item>
 
         <n-divider />
 

@@ -6,18 +6,15 @@ use rusqlite::{params, Connection, OptionalExtension};
 use crate::db::datetime::{format_datetime, read_datetime_column};
 use crate::error::ServiceError;
 use crate::models::progress_log::{ProgressLog, ProgressLogInput};
-use crate::models::work_order_status::WorkOrderStatus;
 use crate::services::work_order_service::get_required;
 
 fn row_to_progress_log(row: &rusqlite::Row<'_>) -> Result<ProgressLog, rusqlite::Error> {
-    let status_str: String = row.get("status")?;
-    let status = WorkOrderStatus::from_db_str(&status_str).unwrap_or(WorkOrderStatus::NotStarted);
     Ok(ProgressLog {
         id: Some(row.get("id")?),
         work_order_id: row.get("work_order_id")?,
         title: row.get("title")?,
         content: row.get("content")?,
-        status,
+        status: row.get("status")?,
         created_at: read_datetime_column(row, "created_at")?,
     })
 }
@@ -81,7 +78,7 @@ pub fn add_log(
             work_order_id,
             input.title.trim(),
             content,
-            input.status.as_db_str(),
+            input.status,
             format_datetime(now),
         ],
     )?;
@@ -110,7 +107,7 @@ pub fn update_log(
         params![
             input.title.trim(),
             content,
-            input.status.as_db_str(),
+            input.status,
             log_id,
         ],
     )?;
@@ -132,10 +129,14 @@ pub fn delete_log(
 mod tests {
     use super::*;
     use crate::db::connection::open_connection;
+    use crate::models::status_config::StatusConfig;
     use crate::models::work_order::WorkOrderInput;
-    use crate::models::work_order_status::WorkOrderStatus;
     use crate::services::work_order_service::create;
     use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn config() -> StatusConfig {
+        StatusConfig::default_config()
+    }
 
     fn temp_db() -> (Connection, std::path::PathBuf) {
         let nanos = SystemTime::now()
@@ -151,7 +152,7 @@ mod tests {
         ProgressLogInput {
             title: title.into(),
             content: Some("Detailed notes".into()),
-            status: WorkOrderStatus::InProgress,
+            status: "IN_PROGRESS".into(),
         }
     }
 
@@ -163,11 +164,11 @@ mod tests {
             WorkOrderInput {
                 title: "With log".into(),
                 description: None,
-                status: WorkOrderStatus::NotStarted,
-                waiting_for: None,
-                waiting_reason: None,
+                status: "NOT_STARTED".into(),
+                extra_fields: None,
                 due_date: None,
             },
+            &config(),
         )
         .unwrap();
         let log = add_log(&conn, wo.id.unwrap(), &sample_input("Started investigation")).unwrap();
@@ -179,13 +180,13 @@ mod tests {
             &ProgressLogInput {
                 title: "Updated title".into(),
                 content: Some("Updated note".into()),
-                status: WorkOrderStatus::Completed,
+                status: "COMPLETED".into(),
             },
         )
         .unwrap();
         assert_eq!(updated.title, "Updated title");
         assert_eq!(updated.content.as_deref(), Some("Updated note"));
-        assert_eq!(updated.status, WorkOrderStatus::Completed);
+        assert_eq!(updated.status, "COMPLETED");
         delete_log(&conn, log.id.unwrap(), wo.id.unwrap()).unwrap();
         assert!(find_by_work_order_id(&conn, wo.id.unwrap()).unwrap().is_empty());
         drop(conn);

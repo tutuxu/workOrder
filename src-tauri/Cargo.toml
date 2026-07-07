@@ -1,10 +1,14 @@
 [package]
 name = "workorder"
-version = "1.0.0"
+version = "1.1.0"
 description = "workOrder desktop app"
 authors = ["workOrder"]
 edition = "2021"
 default-run = "workorder"
+
+[[bin]]
+name = "workorder-migrate"
+path = "src/bin/workorder_migrate.rs"
 
 [lib]
 name = "workorder_lib"

@@ -5,6 +5,7 @@ use tauri::State;
 use crate::error::ServiceError;
 use crate::models::work_order::{WorkOrder, WorkOrderInput};
 use crate::services::attachment_service;
+use crate::services::status_config_service;
 use crate::services::work_order_service;
 use crate::AppState;
 
@@ -18,7 +19,6 @@ fn map_err(err: ServiceError) -> String {
 pub fn list_work_orders(
     state: State<'_, AppState>,
     statuses: Vec<String>,
-    include_completed: bool,
     query: String,
 ) -> Result<Vec<WorkOrder>, String> {
     let conn = state.db.lock().map_err(|_| "database lock poisoned".to_string())?;
@@ -27,7 +27,7 @@ pub fn list_work_orders(
     } else {
         Some(query.trim())
     };
-    work_order_service::find_by_statuses(&conn, &statuses, include_completed, query_ref).map_err(map_err)
+    work_order_service::find_by_statuses(&conn, &statuses, query_ref).map_err(map_err)
 }
 
 /// 按 id 获取单条工单，不存在时返回 `NOT_FOUND`。
@@ -46,10 +46,11 @@ pub fn create_work_order(
     input: WorkOrderInput,
 ) -> Result<WorkOrder, String> {
     let conn = state.db.lock().map_err(|_| "database lock poisoned".to_string())?;
-    work_order_service::create(&conn, input).map_err(map_err)
+    let config = status_config_service::load_config(&state.data_dir).map_err(map_err)?;
+    work_order_service::create(&conn, input, &config).map_err(map_err)
 }
 
-/// 更新工单；若进入或变更「待回复」状态，会自动追加进度日志。
+/// 更新工单。
 #[tauri::command]
 #[specta::specta]
 pub fn update_work_order(
@@ -58,7 +59,8 @@ pub fn update_work_order(
     input: WorkOrderInput,
 ) -> Result<WorkOrder, String> {
     let conn = state.db.lock().map_err(|_| "database lock poisoned".to_string())?;
-    work_order_service::update(&conn, id, input).map_err(map_err)
+    let config = status_config_service::load_config(&state.data_dir).map_err(map_err)?;
+    work_order_service::update(&conn, id, input, &config).map_err(map_err)
 }
 
 /// 删除工单及其全部进度日志。
@@ -81,7 +83,7 @@ pub fn update_priorities(
     work_order_service::update_priorities(&conn, &ordered_ids).map_err(map_err)
 }
 
-/// 判断工单是否逾期（有 due_date、未完成且早于当前时间）。
+/// 判断工单是否逾期（有 due_date 且早于当前时间）。
 #[tauri::command]
 #[specta::specta]
 pub fn is_work_order_overdue(work_order: WorkOrder) -> bool {

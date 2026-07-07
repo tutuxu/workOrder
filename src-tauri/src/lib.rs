@@ -4,10 +4,10 @@
 //! 前端通过 Tauri `invoke` 调用 Command；类型绑定由 tauri-specta 导出至 `src/bindings.ts`。
 
 mod commands;
-mod db;
+pub mod db;
 mod error;
 mod models;
-mod services;
+pub mod services;
 mod settings;
 
 use std::path::PathBuf;
@@ -36,6 +36,8 @@ fn specta_builder() -> Builder<tauri::Wry> {
         commands::work_order::delete_work_order,
         commands::work_order::update_priorities,
         commands::work_order::is_work_order_overdue,
+        commands::status_config::get_status_config,
+        commands::status_config::save_status_config,
         commands::progress_log::list_progress_logs,
         commands::progress_log::add_progress_log,
         commands::progress_log::update_progress_log,
@@ -93,6 +95,9 @@ pub fn run() {
 
             services::settings_service::apply_pending_restore(&settings_path, &data_dir)
                 .map_err(|e| format!("failed to apply pending restore: {e}"))?;
+
+            services::migration_service::run_data_migrations(&data_dir)
+                .map_err(|e| format!("failed to migrate data: {e}"))?;
 
             let conn = db::connection::open_connection(&data_dir)
                 .map_err(|e| format!("failed to open database: {e}"))?;

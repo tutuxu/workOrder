@@ -1,5 +1,7 @@
 //! 工单 CRUD、筛选排序与逾期判定等业务逻辑。
 
+use std::collections::HashMap;
+
 use chrono::Utc;
 use rusqlite::{params, Connection, OptionalExtension};
 
@@ -7,21 +9,31 @@ use crate::db::datetime::{
     format_datetime, read_datetime_column, read_optional_datetime_column,
 };
 use crate::error::ServiceError;
+use crate::models::status_config::StatusConfig;
 use crate::models::work_order::{WorkOrder, WorkOrderInput};
-use crate::models::work_order_status::WorkOrderStatus;
+use crate::services::status_config_service;
+
+fn read_extra_fields(row: &rusqlite::Row<'_>) -> Result<Option<HashMap<String, String>>, rusqlite::Error> {
+    let raw: Option<String> = row.get("extra_fields")?;
+    let Some(text) = raw.filter(|s| !s.trim().is_empty()) else {
+        return Ok(None);
+    };
+    let map: HashMap<String, String> = serde_json::from_str(&text).unwrap_or_default();
+    if map.is_empty() {
+        Ok(None)
+    } else {
+        Ok(Some(map))
+    }
+}
 
 fn row_to_work_order(row: &rusqlite::Row<'_>) -> Result<WorkOrder, rusqlite::Error> {
-    let status_str: String = row.get("status")?;
-    let status = WorkOrderStatus::from_db_str(&status_str).unwrap_or(WorkOrderStatus::NotStarted);
-
     Ok(WorkOrder {
         id: Some(row.get("id")?),
         title: row.get("title")?,
         description: row.get("description")?,
-        status,
+        status: row.get("status")?,
         priority: row.get("priority")?,
-        waiting_for: row.get("waiting_for")?,
-        waiting_reason: row.get("waiting_reason")?,
+        extra_fields: read_extra_fields(row)?,
         due_date: read_optional_datetime_column(row, "due_date")?,
         created_at: read_datetime_column(row, "created_at")?,
         updated_at: read_datetime_column(row, "updated_at")?,
@@ -35,8 +47,27 @@ fn validate_title(title: &str) -> Result<(), ServiceError> {
     Ok(())
 }
 
-fn normalize_text(value: Option<&str>) -> Option<String> {
-    value.map(str::trim).filter(|s| !s.is_empty()).map(str::to_string)
+fn normalize_extra_fields(
+    extra_fields: Option<HashMap<String, String>>,
+) -> Option<HashMap<String, String>> {
+    let mut map = extra_fields.unwrap_or_default();
+    map.retain(|_, v| !v.trim().is_empty());
+    map = map
+        .into_iter()
+        .map(|(k, v)| (k, v.trim().to_string()))
+        .collect();
+    if map.is_empty() {
+        None
+    } else {
+        Some(map)
+    }
+}
+
+fn extra_fields_to_json(extra_fields: &Option<HashMap<String, String>>) -> Option<String> {
+    extra_fields
+        .as_ref()
+        .filter(|m| !m.is_empty())
+        .and_then(|m| serde_json::to_string(m).ok())
 }
 
 fn next_priority(conn: &Connection) -> Result<i32, ServiceError> {
@@ -50,75 +81,19 @@ fn next_priority(conn: &Connection) -> Result<i32, ServiceError> {
     Ok(max.map(|p| p + 1).unwrap_or(0))
 }
 
-fn format_waiting_reply_content(waiting_for: Option<&str>, waiting_reason: Option<&str>) -> Option<String> {
-    let wf = normalize_text(waiting_for);
-    let wr = normalize_text(waiting_reason);
-    match (wf, wr) {
-        (Some(w), Some(r)) => Some(format!("等待 {w}，原因 {r}")),
-        (Some(w), None) => Some(format!("等待 {w}")),
-        (None, Some(r)) => Some(format!("原因 {r}")),
-        (None, None) => None,
-    }
-}
-
-fn insert_progress_log(
-    conn: &Connection,
-    work_order_id: i64,
-    title: &str,
-    content: Option<&str>,
-    status: WorkOrderStatus,
-) -> Result<(), ServiceError> {
-    let now = Utc::now().naive_utc();
-    conn.execute(
-        "INSERT INTO progress_log (work_order_id, title, content, status, created_at) VALUES (?1, ?2, ?3, ?4, ?5)",
-        params![
-            work_order_id,
-            title,
-            content,
-            status.as_db_str(),
-            format_datetime(now),
-        ],
-    )?;
+fn validate_input(config: &StatusConfig, input: &WorkOrderInput) -> Result<(), ServiceError> {
+    validate_title(&input.title)?;
+    let fields = normalize_extra_fields(input.extra_fields.clone()).unwrap_or_default();
+    status_config_service::validate_extra_fields(config, &input.status, &fields)?;
     Ok(())
 }
 
-fn append_waiting_reply_progress_log(
-    conn: &Connection,
-    before: Option<&WorkOrder>,
-    after: &WorkOrder,
-) -> Result<(), ServiceError> {
-    if after.status != WorkOrderStatus::WaitingReply {
-        return Ok(());
-    }
-    let entered_waiting = before.is_none_or(|b| b.status != WorkOrderStatus::WaitingReply);
-    let waiting_info_changed = before.is_some_and(|b| {
-        b.status == WorkOrderStatus::WaitingReply
-            && (normalize_text(b.waiting_for.as_deref())
-                != normalize_text(after.waiting_for.as_deref())
-                || normalize_text(b.waiting_reason.as_deref())
-                    != normalize_text(after.waiting_reason.as_deref()))
-    });
-    if !entered_waiting && !waiting_info_changed {
-        return Ok(());
-    }
-    let id = after.id.ok_or_else(|| ServiceError::Validation("missing work order id".into()))?;
-    let content = format_waiting_reply_content(
-        after.waiting_for.as_deref(),
-        after.waiting_reason.as_deref(),
-    );
-    insert_progress_log(
-        conn,
-        id,
-        WorkOrderStatus::WaitingReply.display_name(),
-        content.as_deref(),
-        WorkOrderStatus::WaitingReply,
-    )
-}
+const WORK_ORDER_SELECT: &str = "SELECT id, title, description, status, priority, extra_fields, due_date, created_at, updated_at FROM work_order";
 
 /// 按 id 获取工单，不存在返回 [`ServiceError::NotFound`]。
 pub fn get_required(conn: &Connection, id: i64) -> Result<WorkOrder, ServiceError> {
     conn.query_row(
-        "SELECT id, title, description, status, priority, waiting_for, waiting_reason, due_date, created_at, updated_at FROM work_order WHERE id = ?1",
+        &format!("{WORK_ORDER_SELECT} WHERE id = ?1"),
         params![id],
         row_to_work_order,
     )
@@ -126,55 +101,58 @@ pub fn get_required(conn: &Connection, id: i64) -> Result<WorkOrder, ServiceErro
     .ok_or_else(|| ServiceError::NotFound(format!("Work order not found: {id}")))
 }
 
-/// 创建工单并分配递增 priority；进入「待回复」时自动写进度日志。
-pub fn create(conn: &Connection, input: WorkOrderInput) -> Result<WorkOrder, ServiceError> {
-    validate_title(&input.title)?;
+/// 创建工单并分配递增 priority。
+pub fn create(
+    conn: &Connection,
+    input: WorkOrderInput,
+    config: &StatusConfig,
+) -> Result<WorkOrder, ServiceError> {
+    validate_input(config, &input)?;
     let now = Utc::now().naive_utc();
     let priority = next_priority(conn)?;
-    let status = input.status;
+    let extra_fields = normalize_extra_fields(input.extra_fields);
     conn.execute(
-        "INSERT INTO work_order (title, description, status, priority, waiting_for, waiting_reason, due_date, created_at, updated_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+        "INSERT INTO work_order (title, description, status, priority, extra_fields, due_date, created_at, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
         params![
             input.title.trim(),
             input.description,
-            status.as_db_str(),
+            input.status,
             priority,
-            input.waiting_for,
-            input.waiting_reason,
+            extra_fields_to_json(&extra_fields),
             input.due_date.map(format_datetime),
             format_datetime(now),
             format_datetime(now),
         ],
     )?;
     let id = conn.last_insert_rowid();
-    let saved = get_required(conn, id)?;
-    append_waiting_reply_progress_log(conn, None, &saved)?;
     get_required(conn, id)
 }
 
-/// 更新工单字段；「待回复」状态变更时自动追加进度日志。
-pub fn update(conn: &Connection, id: i64, input: WorkOrderInput) -> Result<WorkOrder, ServiceError> {
-    let existing = get_required(conn, id)?;
-    let before = existing.clone();
-    validate_title(&input.title)?;
+/// 更新工单字段。
+pub fn update(
+    conn: &Connection,
+    id: i64,
+    input: WorkOrderInput,
+    config: &StatusConfig,
+) -> Result<WorkOrder, ServiceError> {
+    get_required(conn, id)?;
+    validate_input(config, &input)?;
     let now = Utc::now().naive_utc();
+    let extra_fields = normalize_extra_fields(input.extra_fields);
     conn.execute(
-        "UPDATE work_order SET title = ?1, description = ?2, status = ?3, waiting_for = ?4, waiting_reason = ?5, due_date = ?6, updated_at = ?7 WHERE id = ?8",
+        "UPDATE work_order SET title = ?1, description = ?2, status = ?3, extra_fields = ?4, due_date = ?5, updated_at = ?6 WHERE id = ?7",
         params![
             input.title.trim(),
             input.description,
-            input.status.as_db_str(),
-            input.waiting_for,
-            input.waiting_reason,
+            input.status,
+            extra_fields_to_json(&extra_fields),
             input.due_date.map(format_datetime),
             format_datetime(now),
             id,
         ],
     )?;
-    let saved = get_required(conn, id)?;
-    append_waiting_reply_progress_log(conn, Some(&before), &saved)?;
-    Ok(saved)
+    get_required(conn, id)
 }
 
 /// 删除工单及其全部进度日志。
@@ -188,57 +166,49 @@ pub fn delete(conn: &Connection, id: i64) -> Result<(), ServiceError> {
     Ok(())
 }
 
-/// 按状态筛选工单；`statuses` 为空表示全部，`include_completed` 控制是否含已完成。
-/// `query` 非空时在标题、描述、待回复字段中模糊匹配。
+/// 按状态筛选工单；`statuses` 为空表示全部。
+/// `query` 非空时在标题、描述、legacy 等待列与 extra_fields 中模糊匹配。
 pub fn find_by_statuses(
     conn: &Connection,
     statuses: &[String],
-    include_completed: bool,
     query: Option<&str>,
 ) -> Result<Vec<WorkOrder>, ServiceError> {
-    let mut effective: Vec<WorkOrderStatus> = if statuses.is_empty() {
-        WorkOrderStatus::all().to_vec()
-    } else {
-        statuses
+    let mut sql = WORK_ORDER_SELECT.to_string();
+    let mut params: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
+
+    if !statuses.is_empty() {
+        let placeholders: Vec<String> = statuses
             .iter()
-            .filter_map(|s| WorkOrderStatus::from_db_str(s))
-            .collect()
-    };
-    if !include_completed {
-        let user_selected_completed = statuses
-            .iter()
-            .any(|s| WorkOrderStatus::from_db_str(s) == Some(WorkOrderStatus::Completed));
-        if !user_selected_completed {
-            effective.retain(|s| *s != WorkOrderStatus::Completed);
+            .enumerate()
+            .map(|(i, _)| format!("?{}", i + 1))
+            .collect();
+        sql.push_str(&format!(" WHERE status IN ({})", placeholders.join(", ")));
+        for s in statuses {
+            params.push(Box::new(s.clone()));
         }
     }
-    if effective.is_empty() {
-        return Ok(vec![]);
-    }
-    let placeholders: Vec<String> = effective.iter().enumerate().map(|(i, _)| format!("?{}", i + 1)).collect();
-    let mut sql = format!(
-        "SELECT id, title, description, status, priority, waiting_for, waiting_reason, due_date, created_at, updated_at
-         FROM work_order WHERE status IN ({})",
-        placeholders.join(", ")
-    );
-    let mut params: Vec<Box<dyn rusqlite::types::ToSql>> = effective
-        .iter()
-        .map(|s| Box::new(s.as_db_str().to_string()) as Box<dyn rusqlite::types::ToSql>)
-        .collect();
+
     if let Some(q) = query.map(str::trim).filter(|s| !s.is_empty()) {
-        let base = params.len();
         let pattern = format!("%{q}%");
+        if statuses.is_empty() {
+            sql.push_str(" WHERE ");
+        } else {
+            sql.push_str(" AND ");
+        }
+        let base = params.len();
         sql.push_str(&format!(
-            " AND (title LIKE ?{} OR description LIKE ?{} OR waiting_for LIKE ?{} OR waiting_reason LIKE ?{})",
+            "(title LIKE ?{} OR description LIKE ?{} OR waiting_for LIKE ?{} OR waiting_reason LIKE ?{} OR extra_fields LIKE ?{})",
             base + 1,
             base + 2,
             base + 3,
             base + 4,
+            base + 5,
         ));
-        for _ in 0..4 {
+        for _ in 0..5 {
             params.push(Box::new(pattern.clone()));
         }
     }
+
     sql.push_str(" ORDER BY priority ASC, updated_at DESC");
     let param_refs: Vec<&dyn rusqlite::types::ToSql> = params.iter().map(|p| p.as_ref()).collect();
     let mut stmt = conn.prepare(&sql)?;
@@ -265,12 +235,9 @@ pub fn update_priorities(conn: &Connection, ordered_ids: &[i64]) -> Result<(), S
     Ok(())
 }
 
-/// 判断工单是否逾期（有截止日期、未完成且已过期）。
+/// 判断工单是否逾期（有截止日期且已过期）。
 pub fn is_overdue(work_order: &WorkOrder) -> bool {
     if work_order.due_date.is_none() {
-        return false;
-    }
-    if work_order.status == WorkOrderStatus::Completed {
         return false;
     }
     work_order.due_date.unwrap() < Utc::now().naive_utc()
@@ -280,7 +247,6 @@ pub fn is_overdue(work_order: &WorkOrder) -> bool {
 mod tests {
     use super::*;
     use crate::db::connection::open_connection;
-    use crate::services::progress_log_service;
     use chrono::Duration;
     use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -294,13 +260,16 @@ mod tests {
         (conn, dir)
     }
 
+    fn config() -> StatusConfig {
+        StatusConfig::default_config()
+    }
+
     fn input(title: &str) -> WorkOrderInput {
         WorkOrderInput {
             title: title.to_string(),
             description: None,
-            status: WorkOrderStatus::NotStarted,
-            waiting_for: None,
-            waiting_reason: None,
+            status: "NOT_STARTED".into(),
+            extra_fields: None,
             due_date: None,
         }
     }
@@ -308,36 +277,33 @@ mod tests {
     #[test]
     fn create_and_find_by_statuses() {
         let (conn, dir) = temp_db();
-        let created = create(&conn, input("Task A")).unwrap();
+        let created = create(&conn, input("Task A"), &config()).unwrap();
         assert!(created.id.is_some());
-        let list = find_by_statuses(&conn, &[], false, None).unwrap();
+        let list = find_by_statuses(&conn, &[], None).unwrap();
         assert_eq!(list.len(), 1);
         drop(conn);
         let _ = std::fs::remove_dir_all(dir);
     }
 
     #[test]
-    fn filter_hides_completed() {
+    fn filter_by_status() {
         let (conn, dir) = temp_db();
-        create(&conn, input("Open")).unwrap();
-        let done = create(&conn, input("Done")).unwrap();
+        create(&conn, input("Open"), &config()).unwrap();
+        let done = create(&conn, input("Done"), &config()).unwrap();
         update(
             &conn,
             done.id.unwrap(),
             WorkOrderInput {
-                status: WorkOrderStatus::Completed,
+                status: "COMPLETED".into(),
                 ..input("Done")
             },
+            &config(),
         )
         .unwrap();
-        let without = find_by_statuses(&conn, &[], false, None).unwrap();
-        assert_eq!(without.len(), 1);
-        assert_eq!(without[0].title, "Open");
-        let only_done = find_by_statuses(&conn, &["COMPLETED".to_string()], true, None).unwrap();
+        let all = find_by_statuses(&conn, &[], None).unwrap();
+        assert_eq!(all.len(), 2);
+        let only_done = find_by_statuses(&conn, &["COMPLETED".into()], None).unwrap();
         assert_eq!(only_done.len(), 1);
-        let only_done_without_toggle =
-            find_by_statuses(&conn, &["COMPLETED".to_string()], false, None).unwrap();
-        assert_eq!(only_done_without_toggle.len(), 1);
         drop(conn);
         let _ = std::fs::remove_dir_all(dir);
     }
@@ -345,81 +311,77 @@ mod tests {
     #[test]
     fn update_priorities_reorders() {
         let (conn, dir) = temp_db();
-        let first = create(&conn, input("First")).unwrap();
-        let second = create(&conn, input("Second")).unwrap();
+        let first = create(&conn, input("First"), &config()).unwrap();
+        let second = create(&conn, input("Second"), &config()).unwrap();
         update_priorities(&conn, &[second.id.unwrap(), first.id.unwrap()]).unwrap();
-        let list = find_by_statuses(&conn, &[], true, None).unwrap();
+        let list = find_by_statuses(&conn, &[], None).unwrap();
         assert_eq!(list[0].id, second.id);
         drop(conn);
         let _ = std::fs::remove_dir_all(dir);
     }
 
     #[test]
-    fn is_overdue_respects_completed() {
+    fn is_overdue_when_past_due() {
         let (conn, dir) = temp_db();
-        let mut wo = create(
+        let wo = create(
             &conn,
             WorkOrderInput {
                 due_date: Some(Utc::now().naive_utc() - Duration::hours(1)),
                 ..input("Overdue")
             },
+            &config(),
         )
         .unwrap();
         assert!(is_overdue(&wo));
-        wo = update(
+        let completed = update(
             &conn,
             wo.id.unwrap(),
             WorkOrderInput {
-                status: WorkOrderStatus::Completed,
+                status: "COMPLETED".into(),
                 due_date: wo.due_date,
                 ..input("Overdue")
             },
+            &config(),
         )
         .unwrap();
-        assert!(!is_overdue(&wo));
+        assert!(is_overdue(&completed));
         drop(conn);
         let _ = std::fs::remove_dir_all(dir);
     }
 
     #[test]
-    fn waiting_reply_appends_progress_log() {
+    fn required_extra_fields_enforced() {
         let (conn, dir) = temp_db();
-        let created = create(&conn, input("Waiting task")).unwrap();
-        update(
+        let err = create(
             &conn,
-            created.id.unwrap(),
             WorkOrderInput {
-                status: WorkOrderStatus::WaitingReply,
-                waiting_for: Some("联调方".into()),
-                waiting_reason: Some("等待接口确认".into()),
-                ..input("Waiting task")
+                status: "WAITING_REPLY".into(),
+                ..input("Waiting")
             },
+            &config(),
         )
-        .unwrap();
-        let logs = progress_log_service::find_by_work_order_id(&conn, created.id.unwrap()).unwrap();
-        assert_eq!(logs.len(), 1);
-        assert_eq!(logs[0].title, "待回复");
-        assert_eq!(
-            logs[0].content.as_deref(),
-            Some("等待 联调方，原因 等待接口确认")
-        );
-        assert_eq!(logs[0].status, WorkOrderStatus::WaitingReply);
+        .unwrap_err();
+        assert!(matches!(err, ServiceError::Validation(_)));
         drop(conn);
         let _ = std::fs::remove_dir_all(dir);
     }
 
     #[test]
-    fn reads_legacy_java_epoch_timestamps() {
+    fn migrate_waiting_columns_to_extra_fields() {
         let (conn, dir) = temp_db();
         conn.execute(
             "INSERT INTO work_order (title, description, status, priority, waiting_for, waiting_reason, due_date, created_at, updated_at)
-             VALUES ('Legacy', NULL, 'WAITING_REPLY', 0, NULL, NULL, NULL, 1783324852840, 1783324918907)",
+             VALUES ('Legacy', NULL, 'WAITING_REPLY', 0, '运维组', '排期', NULL, datetime('now'), datetime('now'))",
             [],
         )
         .unwrap();
-        let list = find_by_statuses(&conn, &[], false, None).unwrap();
+        crate::db::migrate::migrate_extra_fields(&conn).unwrap();
+        let list = find_by_statuses(&conn, &[], None).unwrap();
         assert_eq!(list.len(), 1);
-        assert_eq!(list[0].title, "Legacy");
+        assert_eq!(
+            list[0].extra_fields.as_ref().and_then(|m| m.get("waitingFor")),
+            Some(&"运维组".to_string())
+        );
         drop(conn);
         let _ = std::fs::remove_dir_all(dir);
     }
@@ -434,6 +396,7 @@ mod tests {
                 description: Some("交换机端口异常".into()),
                 ..input("网络故障")
             },
+            &config(),
         )
         .unwrap();
         create(
@@ -442,39 +405,28 @@ mod tests {
                 title: "其他任务".into(),
                 ..input("其他任务")
             },
+            &config(),
         )
         .unwrap();
+        let mut fields = HashMap::new();
+        fields.insert("waitingFor".into(), "运维组".into());
+        fields.insert("waitingReason".into(), "等待排期".into());
         create(
             &conn,
             WorkOrderInput {
                 title: "待确认".into(),
-                status: WorkOrderStatus::WaitingReply,
-                waiting_for: Some("运维组".into()),
-                waiting_reason: Some("等待排期".into()),
+                status: "WAITING_REPLY".into(),
+                extra_fields: Some(fields),
                 ..input("待确认")
             },
+            &config(),
         )
         .unwrap();
 
-        let by_title = find_by_statuses(&conn, &[], true, Some("网络")).unwrap();
+        let by_title = find_by_statuses(&conn, &[], Some("网络")).unwrap();
         assert_eq!(by_title.len(), 1);
-        assert_eq!(by_title[0].title, "网络故障");
-
-        let by_description = find_by_statuses(&conn, &[], true, Some("交换机")).unwrap();
-        assert_eq!(by_description.len(), 1);
-
-        let by_waiting = find_by_statuses(&conn, &[], true, Some("运维组")).unwrap();
+        let by_waiting = find_by_statuses(&conn, &[], Some("运维组")).unwrap();
         assert_eq!(by_waiting.len(), 1);
-
-        let by_reason = find_by_statuses(&conn, &[], true, Some("排期")).unwrap();
-        assert_eq!(by_reason.len(), 1);
-
-        let no_match = find_by_statuses(&conn, &[], true, Some("不存在的关键词")).unwrap();
-        assert!(no_match.is_empty());
-
-        let empty_query = find_by_statuses(&conn, &[], true, Some("  ")).unwrap();
-        assert_eq!(empty_query.len(), 3);
-
         drop(conn);
         let _ = std::fs::remove_dir_all(dir);
     }
@@ -482,7 +434,7 @@ mod tests {
     #[test]
     fn title_required() {
         let (conn, dir) = temp_db();
-        let err = create(&conn, input(" ")).unwrap_err();
+        let err = create(&conn, input(" "), &config()).unwrap_err();
         assert!(matches!(err, ServiceError::Validation(_)));
         drop(conn);
         let _ = std::fs::remove_dir_all(dir);

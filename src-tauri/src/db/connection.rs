@@ -67,6 +67,7 @@ pub fn open_connection(data_dir: &Path) -> Result<Connection, ServiceError> {
     conn.execute_batch(SCHEMA_SQL)?;
     migrate::migrate_progress_log(&conn)?;
     migrate::migrate_attachment(&conn)?;
+    migrate::migrate_extra_fields(&conn)?;
     Ok(conn)
 }
 

@@ -3,5 +3,5 @@
 pub mod attachment;
 pub mod progress_log;
 pub mod settings;
+pub mod status_config;
 pub mod work_order;
-pub mod work_order_status;

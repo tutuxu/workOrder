@@ -1,13 +1,12 @@
 import { ref } from "vue";
 import dayjs from "dayjs";
-import type { WorkOrder, WorkOrderStatus } from "../types";
+import type { WorkOrder } from "../types";
 import * as api from "../api/workOrders";
 
 export function useWorkOrders() {
   const items = ref<WorkOrder[]>([]);
   const loading = ref(false);
-  const selectedStatuses = ref<WorkOrderStatus[]>([]);
-  const includeCompleted = ref(false);
+  const selectedStatuses = ref<string[]>([]);
   const searchQuery = ref("");
 
   async function refresh() {
@@ -15,7 +14,6 @@ export function useWorkOrders() {
     try {
       items.value = await api.listWorkOrders(
         selectedStatuses.value,
-        includeCompleted.value,
         searchQuery.value,
       );
     } catch (error) {
@@ -28,7 +26,7 @@ export function useWorkOrders() {
   }
 
   function isOverdue(item: WorkOrder): boolean {
-    if (!item.dueDate || item.status === "COMPLETED") {
+    if (!item.dueDate) {
       return false;
     }
     return dayjs(item.dueDate).isBefore(dayjs());
@@ -43,7 +41,6 @@ export function useWorkOrders() {
     items,
     loading,
     selectedStatuses,
-    includeCompleted,
     searchQuery,
     refresh,
     isOverdue,

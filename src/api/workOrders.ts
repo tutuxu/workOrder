@@ -5,10 +5,9 @@ export type { WorkOrder, WorkOrderInput };
 
 export function listWorkOrders(
   statuses: string[],
-  includeCompleted: boolean,
   query = "",
 ): Promise<WorkOrder[]> {
-  return commands.listWorkOrders(statuses, includeCompleted, query.trim());
+  return commands.listWorkOrders(statuses, query.trim());
 }
 
 export function getWorkOrder(id: number): Promise<WorkOrder> {

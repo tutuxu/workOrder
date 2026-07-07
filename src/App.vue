@@ -31,6 +31,7 @@ function openSettings() {
 
 function onSettingsClosed() {
   settingsVisible.value = false;
+  void listRef.value?.reload();
 }
 </script>
 

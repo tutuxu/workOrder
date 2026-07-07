@@ -4,27 +4,27 @@ import { useMessage } from "naive-ui";
 import { VueDraggable } from "vue-draggable-plus";
 import { formatLocalDateTime, formatServerDateTime } from "../utils/datetime";
 import { useWorkOrders } from "../composables/useWorkOrders";
-import { STATUS_OPTIONS, statusLabel, type WorkOrder } from "../types";
+import { useStatusConfig } from "../composables/useStatusConfig";
 
 const emit = defineEmits<{
-  openDetail: [order: WorkOrder | null];
+  openDetail: [order: import("../types").WorkOrder | null];
   openSettings: [];
 }>();
 
 const message = useMessage();
+const { statusOptions, statusLabel, load: loadStatusConfig } = useStatusConfig();
 
 const {
   items,
   loading,
   selectedStatuses,
-  includeCompleted,
   searchQuery,
   refresh,
   isOverdue,
   reorder,
 } = useWorkOrders();
 
-const localItems = ref<WorkOrder[]>([]);
+const localItems = ref<import("../types").WorkOrder[]>([]);
 let searchTimer: ReturnType<typeof setTimeout> | undefined;
 
 const emptyDescription = computed(() =>
@@ -33,6 +33,7 @@ const emptyDescription = computed(() =>
 
 onMounted(async () => {
   try {
+    await loadStatusConfig();
     await refresh();
     localItems.value = [...items.value];
   } catch (error) {
@@ -73,11 +74,12 @@ function openNew() {
   emit("openDetail", null);
 }
 
-function openExisting(order: WorkOrder) {
+function openExisting(order: import("../types").WorkOrder) {
   emit("openDetail", order);
 }
 
 async function reload() {
+  await loadStatusConfig(true);
   await refresh();
   localItems.value = [...items.value];
 }
@@ -94,7 +96,7 @@ defineExpose({ reload });
         class="search-input"
         :value="searchQuery"
         clearable
-        placeholder="搜索标题、描述、待回复信息"
+        placeholder="搜索标题、描述、状态字段"
         @update:value="onSearchInput"
       />
       <div class="status-filters">
@@ -102,7 +104,7 @@ defineExpose({ reload });
         <n-checkbox-group v-model:value="selectedStatuses" @update:value="onFilterChange">
           <n-space>
             <n-checkbox
-              v-for="opt in STATUS_OPTIONS"
+              v-for="opt in statusOptions"
               :key="opt.value"
               :value="opt.value"
               :label="opt.label"
@@ -110,9 +112,6 @@ defineExpose({ reload });
           </n-space>
         </n-checkbox-group>
       </div>
-      <n-checkbox v-model:checked="includeCompleted" @update:checked="onFilterChange">
-        显示已完成
-      </n-checkbox>
     </div>
 
     <n-spin :show="loading">

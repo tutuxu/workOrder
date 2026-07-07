@@ -1,22 +1,45 @@
-import type { WorkOrderStatus } from "./bindings";
+import type {
+  StatusConfig,
+  StatusDefinition,
+  StatusField,
+} from "./bindings";
 
 export type {
   Attachment,
   OwnerType,
-  ProgressLog,
-  ProgressLogInput,
+  StatusConfig,
+  StatusDefinition,
+  StatusField,
+  StatusFieldType,
   WorkOrder,
   WorkOrderInput,
-  WorkOrderStatus,
+  ProgressLog,
+  ProgressLogInput,
 } from "./bindings";
 
-export const STATUS_OPTIONS: { value: WorkOrderStatus; label: string }[] = [
-  { value: "NOT_STARTED", label: "未处置" },
-  { value: "IN_PROGRESS", label: "处置中" },
-  { value: "WAITING_REPLY", label: "待回复" },
-  { value: "COMPLETED", label: "已完成" },
-];
+export function statusLabelFromConfig(
+  config: StatusConfig | null,
+  statusId: string,
+): string {
+  if (!config) return statusId;
+  const found = config.statuses.find((s) => s.id === statusId);
+  return found?.label ?? `未知状态 (${statusId})`;
+}
 
-export function statusLabel(status: WorkOrderStatus): string {
-  return STATUS_OPTIONS.find((o) => o.value === status)?.label ?? status;
+export function sortedStatuses(config: StatusConfig): StatusDefinition[] {
+  return [...config.statuses].sort((a, b) => a.order - b.order);
+}
+
+export function fieldsForStatus(
+  config: StatusConfig | null,
+  statusId: string,
+): StatusField[] {
+  if (!config) return [];
+  return config.statuses.find((s) => s.id === statusId)?.fields ?? [];
+}
+
+export function defaultStatusId(config: StatusConfig | null): string {
+  if (!config || config.statuses.length === 0) return "NOT_STARTED";
+  const sorted = sortedStatuses(config);
+  return sorted[0]?.id ?? "NOT_STARTED";
 }
