@@ -111,6 +111,7 @@ export type StatusDefinition = {
 	id: string,
 	label: string,
 	order: number,
+	color?: string,
 	fields: StatusField[],
 };
 

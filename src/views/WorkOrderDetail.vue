@@ -21,6 +21,7 @@ import {
   isCapsLockKey,
   resolveTextInput,
 } from "../utils/keyboard";
+import { tagStyleForStatus } from "../utils/statusColors";
 
 const props = defineProps<{
   workOrder: WorkOrder | null;
@@ -35,6 +36,7 @@ const message = useMessage();
 const {
   statusOptions,
   statusLabel,
+  statusColor,
   fieldsForStatus,
   defaultStatus,
   load: loadStatusConfig,
@@ -482,7 +484,13 @@ function fieldInputType(field: StatusField): "text" | "textarea" {
           <template #header>
             <div class="progress-header">
               <span class="progress-title">{{ log.title }}</span>
-              <n-tag size="small" :bordered="false">{{ statusLabel(log.status) }}</n-tag>
+              <n-tag
+                size="small"
+                :bordered="false"
+                :style="tagStyleForStatus(statusColor(log.status))"
+              >
+                {{ statusLabel(log.status) }}
+              </n-tag>
               <span class="progress-time">{{ formatServerDateTime(log.createdAt) }}</span>
             </div>
           </template>

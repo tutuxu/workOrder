@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref } from "vue";
+import { dateZhCN, zhCN } from "naive-ui";
 import { isTauri } from "./tauri";
 import WorkOrderList from "./views/WorkOrderList.vue";
 import WorkOrderDetail from "./views/WorkOrderDetail.vue";
@@ -36,7 +37,7 @@ function onSettingsClosed() {
 </script>
 
 <template>
-  <n-config-provider>
+  <n-config-provider :locale="zhCN" :date-locale="dateZhCN">
     <n-dialog-provider>
       <n-message-provider>
         <n-alert

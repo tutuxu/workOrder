@@ -5,6 +5,7 @@ import { VueDraggable } from "vue-draggable-plus";
 import { formatLocalDateTime, formatServerDateTime } from "../utils/datetime";
 import { useWorkOrders } from "../composables/useWorkOrders";
 import { useStatusConfig } from "../composables/useStatusConfig";
+import { rowStyleForStatus } from "../utils/statusColors";
 
 const emit = defineEmits<{
   openDetail: [order: import("../types").WorkOrder | null];
@@ -12,7 +13,7 @@ const emit = defineEmits<{
 }>();
 
 const message = useMessage();
-const { statusOptions, statusLabel, load: loadStatusConfig } = useStatusConfig();
+const { statusOptions, statusLabel, statusColor, load: loadStatusConfig } = useStatusConfig();
 
 const {
   items,
@@ -78,6 +79,10 @@ function openExisting(order: import("../types").WorkOrder) {
   emit("openDetail", order);
 }
 
+function rowStyle(order: import("../types").WorkOrder) {
+  return rowStyleForStatus(statusColor(order.status), isOverdue(order));
+}
+
 async function reload() {
   await loadStatusConfig(true);
   await refresh();
@@ -133,6 +138,7 @@ defineExpose({ reload });
           :key="item.id ?? item.updatedAt"
           class="list-row"
           :class="{ 'overdue-row': isOverdue(item) }"
+          :style="rowStyle(item)"
           @click="openExisting(item)"
         >
           <span>{{ item.title }}</span>

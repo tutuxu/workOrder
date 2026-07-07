@@ -4,7 +4,7 @@ use std::fs;
 use std::path::Path;
 
 use crate::error::ServiceError;
-use crate::models::status_config::StatusConfig;
+use crate::models::status_config::{StatusConfig, DEFAULT_GLASS_COLORS};
 
 pub const CONFIG_FILE_NAME: &str = "status_config.json";
 
@@ -19,6 +19,25 @@ fn is_valid_id(value: &str) -> bool {
             .all(|c| c.is_ascii_alphanumeric() || c == '_')
 }
 
+fn is_valid_color(value: &str) -> bool {
+    let value = value.trim();
+    if value.is_empty() {
+        return false;
+    }
+    if value.starts_with('#') {
+        let hex = &value[1..];
+        return matches!(hex.len(), 3 | 4 | 6 | 8)
+            && hex.chars().all(|c| c.is_ascii_hexdigit());
+    }
+    if value.starts_with("rgba(") && value.ends_with(')') {
+        return true;
+    }
+    if value.starts_with("rgb(") && value.ends_with(')') {
+        return true;
+    }
+    false
+}
+
 /// 读取配置；文件不存在时返回默认配置（不写盘）。
 pub fn load_config(data_dir: &Path) -> Result<StatusConfig, ServiceError> {
     let path = config_path(data_dir);
@@ -28,8 +47,18 @@ pub fn load_config(data_dir: &Path) -> Result<StatusConfig, ServiceError> {
     let content = fs::read_to_string(&path)?;
     let config: StatusConfig = serde_json::from_str(&content)
         .map_err(|e| ServiceError::Validation(format!("状态配置格式错误：{e}")))?;
+    let config = normalize_colors(config);
     validate_config(&config)?;
     Ok(config)
+}
+
+fn normalize_colors(mut config: StatusConfig) -> StatusConfig {
+    for (index, status) in config.statuses.iter_mut().enumerate() {
+        if status.color.trim().is_empty() || !is_valid_color(&status.color) {
+            status.color = DEFAULT_GLASS_COLORS[index % DEFAULT_GLASS_COLORS.len()].into();
+        }
+    }
+    config
 }
 
 /// 若配置文件不存在则写入默认配置。
@@ -42,9 +71,10 @@ pub fn ensure_default_config(data_dir: &Path) -> Result<(), ServiceError> {
 }
 
 pub fn save_config(data_dir: &Path, config: &StatusConfig) -> Result<(), ServiceError> {
-    validate_config(config)?;
+    let config = normalize_colors(config.clone());
+    validate_config(&config)?;
     fs::create_dir_all(data_dir)?;
-    let json = serde_json::to_string_pretty(config)
+    let json = serde_json::to_string_pretty(&config)
         .map_err(|e| ServiceError::Validation(format!("serialize config: {e}")))?;
     fs::write(config_path(data_dir), json)?;
     Ok(())
@@ -65,6 +95,12 @@ pub fn validate_config(config: &StatusConfig) -> Result<(), ServiceError> {
         if status.label.trim().is_empty() {
             return Err(ServiceError::Validation(format!(
                 "状态 {} 的显示名不能为空",
+                status.id
+            )));
+        }
+        if !is_valid_color(&status.color) {
+            return Err(ServiceError::Validation(format!(
+                "状态 {} 的颜色格式无效",
                 status.id
             )));
         }
@@ -159,12 +195,14 @@ mod tests {
                     id: "A".into(),
                     label: "A".into(),
                     order: 0,
+                    color: "rgba(203, 213, 225, 0.55)".into(),
                     fields: vec![],
                 },
                 StatusDefinition {
                     id: "A".into(),
                     label: "B".into(),
                     order: 1,
+                    color: "rgba(147, 197, 253, 0.50)".into(),
                     fields: vec![],
                 },
             ],
@@ -190,6 +228,7 @@ mod tests {
             id: "CUSTOM".into(),
             label: "自定义".into(),
             order: 4,
+            color: "rgba(196, 181, 253, 0.45)".into(),
             fields: vec![StatusField {
                 key: "note".into(),
                 label: "备注".into(),

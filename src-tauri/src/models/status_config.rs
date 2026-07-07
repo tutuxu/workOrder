@@ -23,6 +23,22 @@ pub struct StatusField {
     pub required: bool,
 }
 
+fn default_status_color() -> String {
+    DEFAULT_GLASS_COLORS[0].into()
+}
+
+/// 毛玻璃风格默认色板（rgba，用于列表行背景）。
+pub const DEFAULT_GLASS_COLORS: [&str; 8] = [
+    "rgba(203, 213, 225, 0.55)", // 雾灰
+    "rgba(147, 197, 253, 0.50)", // 天蓝
+    "rgba(134, 239, 172, 0.45)", // 薄荷
+    "rgba(252, 211, 77, 0.45)",  // 琥珀
+    "rgba(251, 182, 206, 0.45)", // 玫瑰
+    "rgba(196, 181, 253, 0.45)", // 薰衣草
+    "rgba(94, 234, 212, 0.40)",  // 青绿
+    "rgba(255, 255, 255, 0.65)", // 珍珠
+];
+
 /// 单个代办状态定义。
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
@@ -30,6 +46,8 @@ pub struct StatusDefinition {
     pub id: String,
     pub label: String,
     pub order: i32,
+    #[serde(default = "default_status_color")]
+    pub color: String,
     pub fields: Vec<StatusField>,
 }
 
@@ -50,18 +68,21 @@ impl StatusConfig {
                     id: "NOT_STARTED".into(),
                     label: "未处置".into(),
                     order: 0,
+                    color: DEFAULT_GLASS_COLORS[0].into(),
                     fields: vec![],
                 },
                 StatusDefinition {
                     id: "IN_PROGRESS".into(),
                     label: "处置中".into(),
                     order: 1,
+                    color: DEFAULT_GLASS_COLORS[1].into(),
                     fields: vec![],
                 },
                 StatusDefinition {
                     id: "WAITING_REPLY".into(),
                     label: "待回复".into(),
                     order: 2,
+                    color: DEFAULT_GLASS_COLORS[3].into(),
                     fields: vec![
                         StatusField {
                             key: "waitingFor".into(),
@@ -81,6 +102,7 @@ impl StatusConfig {
                     id: "COMPLETED".into(),
                     label: "已完成".into(),
                     order: 3,
+                    color: DEFAULT_GLASS_COLORS[2].into(),
                     fields: vec![],
                 },
             ],

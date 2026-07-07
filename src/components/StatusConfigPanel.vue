@@ -11,6 +11,8 @@ import type {
 import { sortedStatuses } from "../types";
 import * as statusConfigApi from "../api/statusConfig";
 import { useStatusConfig } from "../composables/useStatusConfig";
+import StatusColorPicker from "./StatusColorPicker.vue";
+import { DEFAULT_STATUS_COLOR, normalizeStatusColor } from "../utils/statusColors";
 
 const message = useMessage();
 const dialog = useDialog();
@@ -42,10 +44,28 @@ const fieldTypeOptions: { label: string; value: StatusFieldType }[] = [
   { label: "日期时间", value: "date" },
 ];
 
+function toPlainConfig(base: StatusConfig): StatusConfig {
+  return {
+    version: base.version,
+    statuses: sortedStatuses(base).map((s, index) => ({
+      id: s.id,
+      label: s.label,
+      order: index,
+      color: normalizeStatusColor(s.color),
+      fields: s.fields.map((f) => ({
+        key: f.key,
+        label: f.label,
+        type: f.type,
+        required: f.required,
+      })),
+    })),
+  };
+}
+
 onMounted(async () => {
   loading.value = true;
   try {
-    draft.value = structuredClone(await statusConfigApi.getStatusConfig());
+    draft.value = toPlainConfig(await statusConfigApi.getStatusConfig());
     selectedStatusId.value = draft.value.statuses[0]?.id ?? null;
   } catch (error) {
     message.error(`加载代办状态失败：${error}`);
@@ -65,6 +85,7 @@ function addStatus() {
     id: baseId,
     label: "新状态",
     order: draft.value.statuses.length,
+    color: DEFAULT_STATUS_COLOR,
     fields: [],
   };
   draft.value = {
@@ -99,10 +120,14 @@ function removeStatus(id: string) {
 
 function updateSelectedStatus(patch: Partial<StatusDefinition>) {
   if (!draft.value || !selectedStatus.value) return;
+  const nextPatch = { ...patch };
+  if (nextPatch.color !== undefined) {
+    nextPatch.color = normalizeStatusColor(nextPatch.color);
+  }
   draft.value = {
     ...draft.value,
     statuses: draft.value.statuses.map((s) =>
-      s.id === selectedStatus.value!.id ? { ...s, ...patch } : s,
+      s.id === selectedStatus.value!.id ? { ...s, ...nextPatch } : s,
     ),
   };
 }
@@ -140,12 +165,9 @@ async function save() {
   if (!draft.value) return;
   saving.value = true;
   try {
-    const normalized: StatusConfig = {
-      ...draft.value,
-      statuses: statusList.value.map((s, index) => ({ ...s, order: index })),
-    };
+    const normalized = toPlainConfig(draft.value);
     await statusConfigApi.saveStatusConfig(normalized);
-    draft.value = structuredClone(normalized);
+    draft.value = toPlainConfig(normalized);
     await reloadGlobalConfig(true);
     message.success("代办状态已保存");
   } catch (error) {
@@ -179,7 +201,13 @@ async function save() {
               :class="{ 'status-selected': item.id === selectedStatusId }"
               @click="selectStatus(item.id)"
             >
-              <span>{{ item.label }}</span>
+              <span class="status-label-row">
+                <span
+                  class="status-color-dot"
+                  :style="{ backgroundColor: item.color ?? DEFAULT_STATUS_COLOR }"
+                />
+                {{ item.label }}
+              </span>
               <n-button
                 text
                 type="error"
@@ -211,6 +239,13 @@ async function save() {
                 </n-form-item>
               </n-gi>
             </n-grid>
+
+            <n-form-item label="列表颜色" style="margin-top: 8px">
+              <StatusColorPicker
+                :value="selectedStatus.color ?? DEFAULT_STATUS_COLOR"
+                @update:value="(v: string) => updateSelectedStatus({ color: v })"
+              />
+            </n-form-item>
 
             <n-divider />
 
@@ -286,6 +321,20 @@ async function save() {
 .status-selected {
   border-color: var(--n-primary-color);
   background: rgba(24, 160, 88, 0.08);
+}
+
+.status-label-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.status-color-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+  flex-shrink: 0;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.1);
 }
 
 .fields-header {

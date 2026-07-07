@@ -6,6 +6,9 @@ import {
   sortedStatuses,
   statusLabelFromConfig,
 } from "../types";
+import {
+  statusColorFromConfig,
+} from "../utils/statusColors";
 
 const config = ref<StatusConfig | null>(null);
 let loadPromise: Promise<StatusConfig> | null = null;
@@ -38,6 +41,10 @@ export function useStatusConfig() {
     return statusLabelFromConfig(config.value, statusId);
   }
 
+  function statusColor(statusId: string): string {
+    return statusColorFromConfig(config.value, statusId);
+  }
+
   function fieldsForStatus(statusId: string) {
     if (!config.value) return [];
     return config.value.statuses.find((s) => s.id === statusId)?.fields ?? [];
@@ -53,6 +60,7 @@ export function useStatusConfig() {
     load,
     save,
     statusLabel,
+    statusColor,
     fieldsForStatus,
     defaultStatus,
   };

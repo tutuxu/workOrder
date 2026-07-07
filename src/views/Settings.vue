@@ -3,7 +3,6 @@ import { computed, onMounted, ref } from "vue";
 import { useDialog, useMessage } from "naive-ui";
 import * as settingsApi from "../api/settings";
 import StatusConfigPanel from "../components/StatusConfigPanel.vue";
-
 const emit = defineEmits<{
   closed: [];
 }>();
@@ -144,7 +143,10 @@ function close() {
     <n-spin :show="loading">
       <n-form label-placement="top">
         <n-form-item label="数据存储位置">
-          <n-input :value="pendingDataDir" readonly placeholder="未设置" />
+          <n-input-group>
+            <n-input :value="pendingDataDir" readonly placeholder="未设置" />
+            <n-button :disabled="!canEdit" @click="browse">选择目录</n-button>
+          </n-input-group>
         </n-form-item>
         <n-alert v-if="envOverride" type="warning" style="margin-bottom: 12px">
           当前由环境变量 WORKORDER_DATA_DIR 指定，无法在应用内修改。
@@ -183,7 +185,6 @@ function close() {
     <template #footer>
       <n-space justify="end">
         <n-button @click="show = false">取消</n-button>
-        <n-button :disabled="!canEdit" @click="browse">浏览...</n-button>
         <n-button
           type="primary"
           :disabled="!canEdit || !hasChange"
