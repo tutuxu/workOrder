@@ -59,6 +59,13 @@ function openNew() {
 function openExisting(order: WorkOrder) {
   emit("openDetail", order);
 }
+
+async function reload() {
+  await refresh();
+  localItems.value = [...items.value];
+}
+
+defineExpose({ reload });
 </script>
 
 <template>

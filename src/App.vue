@@ -8,7 +8,7 @@ import type { WorkOrder } from "./types";
 
 const detailVisible = ref(false);
 const selectedOrder = ref<WorkOrder | null>(null);
-const listKey = ref(0);
+const listRef = ref<InstanceType<typeof WorkOrderList> | null>(null);
 const settingsVisible = ref(false);
 
 function openDetail(order: WorkOrder | null) {
@@ -16,8 +16,8 @@ function openDetail(order: WorkOrder | null) {
   detailVisible.value = true;
 }
 
-function onSaved() {
-  listKey.value += 1;
+async function onSaved() {
+  await listRef.value?.reload();
 }
 
 function onClosed() {
@@ -50,7 +50,7 @@ function onSettingsClosed() {
         </n-alert>
         <WorkOrderList
           v-else
-          :key="listKey"
+          ref="listRef"
           @open-detail="openDetail"
           @open-settings="openSettings"
         />
