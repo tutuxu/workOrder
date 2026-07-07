@@ -198,7 +198,12 @@ pub fn find_by_statuses(
             .collect()
     };
     if !include_completed {
-        effective.retain(|s| *s != WorkOrderStatus::Completed);
+        let user_selected_completed = statuses
+            .iter()
+            .any(|s| WorkOrderStatus::from_db_str(s) == Some(WorkOrderStatus::Completed));
+        if !user_selected_completed {
+            effective.retain(|s| *s != WorkOrderStatus::Completed);
+        }
     }
     if effective.is_empty() {
         return Ok(vec![]);
@@ -308,6 +313,9 @@ mod tests {
         assert_eq!(without[0].title, "Open");
         let only_done = find_by_statuses(&conn, &["COMPLETED".to_string()], true).unwrap();
         assert_eq!(only_done.len(), 1);
+        let only_done_without_toggle =
+            find_by_statuses(&conn, &["COMPLETED".to_string()], false).unwrap();
+        assert_eq!(only_done_without_toggle.len(), 1);
         drop(conn);
         let _ = std::fs::remove_dir_all(dir);
     }
