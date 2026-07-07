@@ -49,6 +49,7 @@ const progressTitle = ref("");
 const progressContent = ref("");
 const progressStatus = ref<WorkOrderStatus>("IN_PROGRESS");
 const editingLogId = ref<number | null>(null);
+const showProgressForm = ref(false);
 
 const workOrderGalleryRef = ref<InstanceType<typeof AttachmentGallery> | null>(null);
 const progressGalleryRef = ref<InstanceType<typeof AttachmentGallery> | null>(null);
@@ -83,6 +84,16 @@ function clearProgressForm() {
   progressContent.value = "";
   progressStatus.value = "IN_PROGRESS";
   progressGalleryRef.value?.clearStaged();
+  showProgressForm.value = false;
+}
+
+function openProgressForm() {
+  editingLogId.value = null;
+  progressTitle.value = "";
+  progressContent.value = "";
+  progressStatus.value = "IN_PROGRESS";
+  progressGalleryRef.value?.clearStaged();
+  showProgressForm.value = true;
 }
 
 async function loadLogs() {
@@ -225,6 +236,7 @@ function startEdit(log: ProgressLog) {
   progressTitle.value = log.title;
   progressContent.value = log.content ?? "";
   progressStatus.value = log.status;
+  showProgressForm.value = true;
   if (log.id != null && !expandedLogIds.value.includes(log.id)) {
     expandedLogIds.value = [...expandedLogIds.value, log.id];
   }
@@ -317,7 +329,9 @@ onUnmounted(() => {
     v-model:show="show"
     preset="card"
     :title="modalTitle"
+    class="work-order-detail-modal"
     style="width: 640px"
+    content-scrollable
     @after-leave="close"
   >
     <div ref="modalContainerRef" @keydown="onFormKeydown">
@@ -403,12 +417,21 @@ onUnmounted(() => {
           </div>
         </n-collapse-item>
       </n-collapse>
+
+      <n-button
+        v-if="!showProgressForm"
+        type="primary"
+        style="margin-top: 12px"
+        @click="openProgressForm"
+      >
+        添加过程
+      </n-button>
     </template>
 
     <n-card
-      v-if="!isNew"
+      v-if="!isNew && showProgressForm"
       size="small"
-      :title="editingLogId != null ? '编辑过程' : '追加过程'"
+      :title="editingLogId != null ? '编辑过程' : '添加过程'"
       style="margin-top: 12px"
     >
       <n-form label-placement="top">
@@ -449,10 +472,10 @@ onUnmounted(() => {
         </n-form-item>
       </n-form>
       <n-space>
-        <n-button type="primary" @click="saveProgress">
-          {{ editingLogId != null ? "保存修改" : "追加" }}
+        <n-button type="primary" :keyboard="false" @click="saveProgress">
+          {{ editingLogId != null ? "保存修改" : "保存过程" }}
         </n-button>
-        <n-button v-if="editingLogId != null" @click="clearProgressForm">取消</n-button>
+        <n-button @click="clearProgressForm">取消</n-button>
       </n-space>
     </n-card>
     </div>

@@ -154,3 +154,14 @@ body {
   color: #999;
   font-size: 12px;
 }
+
+.work-order-detail-modal {
+  align-self: flex-start;
+  margin: 16px auto;
+  max-height: calc(100vh - 32px);
+}
+
+.work-order-detail-modal.n-card--content-scrollable > .n-card__content-scrollbar {
+  flex: 1;
+  min-height: 0;
+}
