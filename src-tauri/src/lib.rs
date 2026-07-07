@@ -8,7 +8,9 @@ mod db;
 mod error;
 mod models;
 mod services;
+mod settings;
 
+use std::path::PathBuf;
 use std::sync::Mutex;
 
 use rusqlite::Connection;
@@ -18,6 +20,8 @@ use tauri_specta::{collect_commands, Builder, ErrorHandlingMode};
 
 pub struct AppState {
     pub db: Mutex<Connection>,
+    pub data_dir: PathBuf,
+    pub settings_path: PathBuf,
 }
 
 fn specta_builder() -> Builder<tauri::Wry> {
@@ -36,6 +40,10 @@ fn specta_builder() -> Builder<tauri::Wry> {
         commands::progress_log::add_progress_log,
         commands::progress_log::update_progress_log,
         commands::progress_log::delete_progress_log,
+        commands::settings::get_settings,
+        commands::settings::pick_data_dir,
+        commands::settings::change_data_dir,
+        commands::settings::restart_app,
     ])
 }
 
@@ -60,12 +68,27 @@ pub fn run() {
         .expect("Failed to export typescript bindings");
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
-            let data_dir = db::connection::resolve_data_dir(None);
+            let settings_path = settings::settings_path()
+                .map_err(|e| format!("failed to resolve settings path: {e}"))?;
+            let loaded = settings::load(&settings_path)
+                .map_err(|e| format!("failed to load settings: {e}"))?;
+            let settings_data_dir = loaded.as_ref().map(|s| s.data_dir.as_str());
+            let data_dir = db::connection::resolve_data_dir(settings_data_dir, None);
+
+            if settings_data_dir.is_some() {
+                std::fs::create_dir_all(&data_dir)
+                    .map_err(|e| format!("failed to create configured data dir: {e}"))?;
+            }
+
             let conn = db::connection::open_connection(&data_dir)
                 .map_err(|e| format!("failed to open database: {e}"))?;
+
             app.manage(AppState {
                 db: Mutex::new(conn),
+                data_dir,
+                settings_path,
             });
             Ok(())
         })

@@ -208,6 +208,17 @@ await commands.listWorkOrders(["IN_PROGRESS"], false);
 
 ---
 
+## 设置
+
+| Command | 说明 |
+|---------|------|
+| `get_settings` | 返回当前数据目录、settings 路径、是否 env 覆盖 |
+| `pick_data_dir` | 打开文件夹选择对话框 |
+| `change_data_dir` | 校验、迁移、写入 settings.json |
+| `restart_app` | 重启应用 |
+
+---
+
 ## 维护说明
 
 修改 Rust Command 或 Model 后，须重新生成绑定：

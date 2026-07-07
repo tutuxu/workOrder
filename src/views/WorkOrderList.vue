@@ -8,6 +8,7 @@ import { STATUS_OPTIONS, statusLabel, type WorkOrder } from "../types";
 
 const emit = defineEmits<{
   openDetail: [order: WorkOrder | null];
+  openSettings: [];
 }>();
 
 const message = useMessage();
@@ -64,6 +65,7 @@ function openExisting(order: WorkOrder) {
   <div class="work-order-list">
     <div class="toolbar">
       <n-button type="primary" @click="openNew">新建</n-button>
+      <n-button quaternary @click="emit('openSettings')">设置</n-button>
       <div class="status-filters">
         <span>状态筛选</span>
         <n-checkbox-group v-model:value="selectedStatuses" @update:value="onFilterChange">

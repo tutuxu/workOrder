@@ -26,15 +26,32 @@ export const commands = {
 	updateProgressLog: (logId: number, workOrderId: number, content: string) => __TAURI_INVOKE<ProgressLog>("update_progress_log", { logId, workOrderId, content }),
 	/**  删除进度日志；log 必须属于指定工单。 */
 	deleteProgressLog: (logId: number, workOrderId: number) => __TAURI_INVOKE<null>("delete_progress_log", { logId, workOrderId }),
+	getSettings: () => __TAURI_INVOKE<SettingsInfo>("get_settings"),
+	pickDataDir: () => __TAURI_INVOKE<string | null>("pick_data_dir"),
+	changeDataDir: (newPath: string) => __TAURI_INVOKE<ChangeDataDirResult>("change_data_dir", { newPath }),
+	restartApp: () => __TAURI_INVOKE<null>("restart_app"),
 };
 
 /* Types */
+export type ChangeDataDirResult = {
+	success: boolean,
+	restartRequired: boolean,
+	newDataDir: string,
+};
+
 /**  工单下的单条进度记录。 */
 export type ProgressLog = {
 	id: number | null,
 	workOrderId: number,
 	content: string,
 	createdAt: string,
+};
+
+export type SettingsInfo = {
+	dataDir: string,
+	settingsPath: string,
+	envOverride: boolean,
+	defaultDataDir: string,
 };
 
 /**  工单完整记录（含 id、priority 与时间戳）。 */

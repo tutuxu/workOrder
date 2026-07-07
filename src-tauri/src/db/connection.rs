@@ -9,10 +9,15 @@ use crate::error::ServiceError;
 
 const SCHEMA_SQL: &str = include_str!("schema.sql");
 
-/// 解析数据目录：环境变量 > 配置 > 向上查找项目根 data/ > 可执行文件旁 data/
-pub fn resolve_data_dir(config_dir: Option<&str>) -> PathBuf {
+/// 解析数据目录：环境变量 > settings.json > 配置 > 向上查找 > 可执行文件旁 data/
+pub fn resolve_data_dir(settings_dir: Option<&str>, config_dir: Option<&str>) -> PathBuf {
     if let Ok(dir) = std::env::var("WORKORDER_DATA_DIR") {
         return PathBuf::from(dir);
+    }
+    if let Some(dir) = settings_dir {
+        if !dir.is_empty() {
+            return PathBuf::from(dir);
+        }
     }
     if let Some(dir) = config_dir {
         if !dir.is_empty() {
@@ -90,5 +95,12 @@ mod tests {
         let src_tauri = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         let resolved = find_data_dir_upward(&src_tauri).expect("project data dir");
         assert!(resolved.ends_with("data"));
+    }
+
+    #[test]
+    fn settings_dir_takes_priority_over_heuristic() {
+        let custom = std::env::temp_dir().join("workorder-resolve-custom");
+        let resolved = resolve_data_dir(Some(custom.to_str().unwrap()), None);
+        assert_eq!(resolved, custom);
     }
 }
