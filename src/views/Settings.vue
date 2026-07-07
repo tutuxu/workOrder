@@ -12,6 +12,8 @@ const dialog = useDialog();
 const show = ref(true);
 const loading = ref(false);
 const applying = ref(false);
+const exporting = ref(false);
+const restoring = ref(false);
 
 const currentDataDir = ref("");
 const pendingDataDir = ref("");
@@ -74,6 +76,57 @@ async function applyAndRestart() {
   }
 }
 
+async function backup() {
+  exporting.value = true;
+  try {
+    const savePath = await settingsApi.pickBackupSavePath();
+    if (!savePath) return;
+    const result = await settingsApi.exportBackup(savePath);
+    message.success(`备份已保存：${result.filePath}`);
+  } catch (error) {
+    message.error(`备份失败：${error}`);
+  } finally {
+    exporting.value = false;
+  }
+}
+
+function restore() {
+  dialog.error({
+    title: "确认恢复",
+    content:
+      "将用备份完全替换当前所有数据（工单、进度记录、附件），此操作不可撤销。建议先备份当前数据。是否继续？",
+    positiveText: "继续恢复",
+    negativeText: "取消",
+    onPositiveClick: () => {
+      void doRestore();
+    },
+  });
+}
+
+async function doRestore() {
+  restoring.value = true;
+  try {
+    const zipPath = await settingsApi.pickBackupFile();
+    if (!zipPath) return;
+    const result = await settingsApi.importBackup(zipPath);
+    if (result.restartRequired) {
+      dialog.warning({
+        title: "恢复准备完成",
+        content: "备份已校验通过。需要重启应用后完成恢复，是否立即重启？",
+        positiveText: "立即重启",
+        negativeText: "稍后",
+        onPositiveClick: () => {
+          void settingsApi.restartApp();
+        },
+      });
+    }
+  } catch (error) {
+    message.error(`恢复失败：${error}`);
+  } finally {
+    restoring.value = false;
+  }
+}
+
 function close() {
   emit("closed");
 }
@@ -98,9 +151,25 @@ function close() {
         <n-text depth="3" style="display: block; margin-bottom: 12px">
           更改后将复制数据到新位置，并需要重启应用。原数据会保留。
         </n-text>
-        <n-text v-if="settingsPath" depth="3" style="display: block; font-size: 12px">
+        <n-text v-if="settingsPath" depth="3" style="display: block; font-size: 12px; margin-bottom: 16px">
           配置文件：{{ settingsPath }}
         </n-text>
+
+        <n-divider />
+
+        <n-form-item label="数据备份">
+          <n-space vertical>
+            <n-text depth="3" style="font-size: 13px">
+              备份包含全部工单、进度记录和附件。恢复将替换当前所有数据，完成后需重启应用。
+            </n-text>
+            <n-space>
+              <n-button :loading="exporting" @click="backup">备份...</n-button>
+              <n-button type="error" :loading="restoring" @click="restore">
+                恢复...
+              </n-button>
+            </n-space>
+          </n-space>
+        </n-form-item>
       </n-form>
     </n-spin>
 

@@ -17,3 +17,17 @@ pub struct ChangeDataDirResult {
     pub restart_required: bool,
     pub new_data_dir: String,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct ExportBackupResult {
+    pub success: bool,
+    pub file_path: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct ImportBackupResult {
+    pub success: bool,
+    pub restart_required: bool,
+}

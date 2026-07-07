@@ -29,6 +29,10 @@ export const commands = {
 	getSettings: () => __TAURI_INVOKE<SettingsInfo>("get_settings"),
 	pickDataDir: () => __TAURI_INVOKE<string | null>("pick_data_dir"),
 	changeDataDir: (newPath: string) => __TAURI_INVOKE<ChangeDataDirResult>("change_data_dir", { newPath }),
+	pickBackupSavePath: () => __TAURI_INVOKE<string | null>("pick_backup_save_path"),
+	pickBackupFile: () => __TAURI_INVOKE<string | null>("pick_backup_file"),
+	exportBackup: (savePath: string) => __TAURI_INVOKE<ExportBackupResult>("export_backup", { savePath }),
+	importBackup: (zipPath: string) => __TAURI_INVOKE<ImportBackupResult>("import_backup", { zipPath }),
 	restartApp: () => __TAURI_INVOKE<null>("restart_app"),
 	listAttachments: (ownerType: OwnerType, ownerId: number) => __TAURI_INVOKE<Attachment[]>("list_attachments", { ownerType, ownerId }),
 	addAttachmentFromFile: (ownerType: OwnerType, ownerId: number, sourcePath: string) => __TAURI_INVOKE<Attachment>("add_attachment_from_file", { ownerType, ownerId, sourcePath }),
@@ -56,6 +60,16 @@ export type ChangeDataDirResult = {
 	success: boolean,
 	restartRequired: boolean,
 	newDataDir: string,
+};
+
+export type ExportBackupResult = {
+	success: boolean,
+	filePath: string,
+};
+
+export type ImportBackupResult = {
+	success: boolean,
+	restartRequired: boolean,
 };
 
 export type OwnerType = "work_order" | "progress_log";

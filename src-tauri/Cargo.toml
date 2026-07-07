@@ -26,3 +26,4 @@ tauri-specta = { version = "=2.0.0-rc.25", features = ["derive", "typescript"] }
 dunce = "1"
 tauri-plugin-dialog = "2"
 uuid = { version = "1", features = ["v4"] }
+zip = { version = "2", default-features = false, features = ["deflate"] }

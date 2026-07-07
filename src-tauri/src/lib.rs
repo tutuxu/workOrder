@@ -43,6 +43,10 @@ fn specta_builder() -> Builder<tauri::Wry> {
         commands::settings::get_settings,
         commands::settings::pick_data_dir,
         commands::settings::change_data_dir,
+        commands::settings::pick_backup_save_path,
+        commands::settings::pick_backup_file,
+        commands::settings::export_backup,
+        commands::settings::import_backup,
         commands::settings::restart_app,
         commands::attachment::list_attachments,
         commands::attachment::add_attachment_from_file,
@@ -86,6 +90,9 @@ pub fn run() {
                 std::fs::create_dir_all(&data_dir)
                     .map_err(|e| format!("failed to create configured data dir: {e}"))?;
             }
+
+            services::settings_service::apply_pending_restore(&settings_path, &data_dir)
+                .map_err(|e| format!("failed to apply pending restore: {e}"))?;
 
             let conn = db::connection::open_connection(&data_dir)
                 .map_err(|e| format!("failed to open database: {e}"))?;

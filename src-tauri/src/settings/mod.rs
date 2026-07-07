@@ -1,5 +1,6 @@
 //! 应用设置：exe 旁 settings.json 读写。
 
+pub mod backup;
 pub mod migration;
 
 use std::fs;
@@ -16,6 +17,8 @@ const SETTINGS_FILENAME: &str = "settings.json";
 pub struct Settings {
     pub version: u32,
     pub data_dir: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pending_restore_from: Option<String>,
 }
 
 impl Settings {
@@ -23,6 +26,7 @@ impl Settings {
         Self {
             version: SETTINGS_VERSION,
             data_dir: data_dir.into(),
+            pending_restore_from: None,
         }
     }
 }
