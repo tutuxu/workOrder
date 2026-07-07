@@ -1,3 +1,5 @@
+//! SQLite 连接与数据目录解析。
+
 use std::fs;
 use std::path::{Path, PathBuf};
 

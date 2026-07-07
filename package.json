@@ -8,6 +8,7 @@
     "build": "vue-tsc --noEmit && vite build",
     "preview": "vite preview",
     "tauri": "tauri",
+    "bindings": "cargo run --manifest-path src-tauri/Cargo.toml --bin export_bindings",
     "package:win": "scripts\\package-windows.bat"
   },
   "dependencies": {

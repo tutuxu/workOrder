@@ -1,6 +1,8 @@
 use serde::{Deserialize, Serialize};
+use specta::Type;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+/// 工单生命周期状态，与数据库 `VARCHAR` 及前端 `WorkOrderStatus` 对齐。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum WorkOrderStatus {
     NotStarted,

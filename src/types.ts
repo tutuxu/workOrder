@@ -1,37 +1,11 @@
-export type WorkOrderStatus =
-  | "NOT_STARTED"
-  | "IN_PROGRESS"
-  | "WAITING_REPLY"
-  | "COMPLETED";
+import type { WorkOrderStatus } from "./bindings";
 
-export interface WorkOrder {
-  id?: number;
-  title: string;
-  description?: string | null;
-  status: WorkOrderStatus;
-  priority: number;
-  waitingFor?: string | null;
-  waitingReason?: string | null;
-  dueDate?: string | null;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface WorkOrderInput {
-  title: string;
-  description?: string | null;
-  status: WorkOrderStatus;
-  waitingFor?: string | null;
-  waitingReason?: string | null;
-  dueDate?: string | null;
-}
-
-export interface ProgressLog {
-  id?: number;
-  workOrderId: number;
-  content: string;
-  createdAt: string;
-}
+export type {
+  ProgressLog,
+  WorkOrder,
+  WorkOrderInput,
+  WorkOrderStatus,
+} from "./bindings";
 
 export const STATUS_OPTIONS: { value: WorkOrderStatus; label: string }[] = [
   { value: "NOT_STARTED", label: "未处置" },

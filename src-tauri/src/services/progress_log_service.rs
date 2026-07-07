@@ -1,3 +1,5 @@
+//! 进度日志 CRUD。
+
 use chrono::Utc;
 use rusqlite::{params, Connection, OptionalExtension};
 
@@ -36,6 +38,7 @@ fn get_required_log(
     Ok(log)
 }
 
+/// 列出工单下全部进度日志，按 created_at 降序。
 pub fn find_by_work_order_id(
     conn: &Connection,
     work_order_id: i64,
@@ -51,6 +54,7 @@ pub fn find_by_work_order_id(
     Ok(result)
 }
 
+/// 添加工单进度日志，content 不能为空。
 pub fn add_log(
     conn: &Connection,
     work_order_id: i64,
@@ -69,6 +73,7 @@ pub fn add_log(
     get_required_log(conn, id, work_order_id)
 }
 
+/// 更新进度日志内容，并校验归属工单。
 pub fn update_log(
     conn: &Connection,
     log_id: i64,
@@ -86,6 +91,7 @@ pub fn update_log(
     get_required_log(conn, log_id, work_order_id)
 }
 
+/// 删除进度日志，并校验归属工单。
 pub fn delete_log(
     conn: &Connection,
     log_id: i64,

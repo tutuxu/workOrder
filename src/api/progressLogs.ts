@@ -1,15 +1,17 @@
-import { invoke } from "@tauri-apps/api/core";
-import type { ProgressLog } from "../types";
+import { commands } from "../bindings";
+import type { ProgressLog } from "../bindings";
+
+export type { ProgressLog };
 
 export function listProgressLogs(workOrderId: number): Promise<ProgressLog[]> {
-  return invoke<ProgressLog[]>("list_progress_logs", { workOrderId });
+  return commands.listProgressLogs(workOrderId);
 }
 
 export function addProgressLog(
   workOrderId: number,
   content: string,
 ): Promise<ProgressLog> {
-  return invoke<ProgressLog>("add_progress_log", { workOrderId, content });
+  return commands.addProgressLog(workOrderId, content);
 }
 
 export function updateProgressLog(
@@ -17,16 +19,12 @@ export function updateProgressLog(
   workOrderId: number,
   content: string,
 ): Promise<ProgressLog> {
-  return invoke<ProgressLog>("update_progress_log", {
-    logId,
-    workOrderId,
-    content,
-  });
+  return commands.updateProgressLog(logId, workOrderId, content);
 }
 
 export function deleteProgressLog(
   logId: number,
   workOrderId: number,
 ): Promise<void> {
-  return invoke<void>("delete_progress_log", { logId, workOrderId });
+  return commands.deleteProgressLog(logId, workOrderId).then(() => undefined);
 }

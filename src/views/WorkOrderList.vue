@@ -4,7 +4,7 @@ import { useMessage } from "naive-ui";
 import { VueDraggable } from "vue-draggable-plus";
 import dayjs from "dayjs";
 import { useWorkOrders } from "../composables/useWorkOrders";
-import { STATUS_OPTIONS, statusLabel, type WorkOrder, type WorkOrderStatus } from "../types";
+import { STATUS_OPTIONS, statusLabel, type WorkOrder } from "../types";
 
 const emit = defineEmits<{
   openDetail: [order: WorkOrder | null];
@@ -52,13 +52,7 @@ function formatDate(value?: string | null) {
 }
 
 function openNew() {
-  emit("openDetail", {
-    title: "",
-    status: "NOT_STARTED" as WorkOrderStatus,
-    priority: 0,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  });
+  emit("openDetail", null);
 }
 
 function openExisting(order: WorkOrder) {
@@ -104,7 +98,7 @@ function openExisting(order: WorkOrder) {
       >
         <div
           v-for="item in localItems"
-          :key="item.id"
+          :key="item.id ?? item.updatedAt"
           class="list-row"
           :class="{ 'overdue-row': isOverdue(item) }"
           @click="openExisting(item)"

@@ -1,36 +1,38 @@
-import { invoke } from "@tauri-apps/api/core";
-import type { WorkOrder, WorkOrderInput } from "../types";
+import { commands } from "../bindings";
+import type { WorkOrder, WorkOrderInput } from "../bindings";
+
+export type { WorkOrder, WorkOrderInput };
 
 export function listWorkOrders(
   statuses: string[],
   includeCompleted: boolean,
 ): Promise<WorkOrder[]> {
-  return invoke<WorkOrder[]>("list_work_orders", { statuses, includeCompleted });
+  return commands.listWorkOrders(statuses, includeCompleted);
 }
 
 export function getWorkOrder(id: number): Promise<WorkOrder> {
-  return invoke<WorkOrder>("get_work_order", { id });
+  return commands.getWorkOrder(id);
 }
 
 export function createWorkOrder(input: WorkOrderInput): Promise<WorkOrder> {
-  return invoke<WorkOrder>("create_work_order", { input });
+  return commands.createWorkOrder(input);
 }
 
 export function updateWorkOrder(
   id: number,
   input: WorkOrderInput,
 ): Promise<WorkOrder> {
-  return invoke<WorkOrder>("update_work_order", { id, input });
+  return commands.updateWorkOrder(id, input);
 }
 
 export function deleteWorkOrder(id: number): Promise<void> {
-  return invoke<void>("delete_work_order", { id });
+  return commands.deleteWorkOrder(id).then(() => undefined);
 }
 
 export function updatePriorities(orderedIds: number[]): Promise<void> {
-  return invoke<void>("update_priorities", { orderedIds });
+  return commands.updatePriorities(orderedIds).then(() => undefined);
 }
 
 export function isWorkOrderOverdue(workOrder: WorkOrder): Promise<boolean> {
-  return invoke<boolean>("is_work_order_overdue", { workOrder });
+  return commands.isWorkOrderOverdue(workOrder);
 }

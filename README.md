@@ -79,6 +79,8 @@ npm run tauri dev
 
 开发时数据文件位于项目根目录 `data/workorder.db`。
 
+修改 Rust Command 或 Model 后，运行 `npm run bindings` 重新生成 `src/bindings.ts`（debug 模式启动时也会自动导出）。更多命令见 [开发者常用命令](docs/dev-commands.md)。
+
 ### 打包为可分发版本
 
 任选其一：
@@ -130,6 +132,9 @@ git checkout main
 
 ## 更多文档
 
+- [开发者常用命令](docs/dev-commands.md)
+- [后端架构](docs/backend.md)
+- [Tauri Command API](docs/api/commands.md)
 - [需求文档](plan/需求文档.md)
 - [技术选型](plan/技术选型.md)
 - [实现计划](plan/实现计划.md)

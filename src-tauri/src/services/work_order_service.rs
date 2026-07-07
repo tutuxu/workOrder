@@ -1,3 +1,5 @@
+//! 工单 CRUD、筛选排序与逾期判定等业务逻辑。
+
 use chrono::Utc;
 use rusqlite::{params, Connection, OptionalExtension};
 
@@ -7,7 +9,6 @@ use crate::db::datetime::{
 use crate::error::ServiceError;
 use crate::models::work_order::{WorkOrder, WorkOrderInput};
 use crate::models::work_order_status::WorkOrderStatus;
-
 
 fn row_to_work_order(row: &rusqlite::Row<'_>) -> Result<WorkOrder, rusqlite::Error> {
     let status_str: String = row.get("status")?;
@@ -109,6 +110,7 @@ fn append_waiting_reply_progress_log(
     insert_progress_log(conn, id, &content)
 }
 
+/// 按 id 获取工单，不存在返回 [`ServiceError::NotFound`]。
 pub fn get_required(conn: &Connection, id: i64) -> Result<WorkOrder, ServiceError> {
     conn.query_row(
         "SELECT id, title, description, status, priority, waiting_for, waiting_reason, due_date, created_at, updated_at FROM work_order WHERE id = ?1",
@@ -119,6 +121,7 @@ pub fn get_required(conn: &Connection, id: i64) -> Result<WorkOrder, ServiceErro
     .ok_or_else(|| ServiceError::NotFound(format!("Work order not found: {id}")))
 }
 
+/// 创建工单并分配递增 priority；进入「待回复」时自动写进度日志。
 pub fn create(conn: &Connection, input: WorkOrderInput) -> Result<WorkOrder, ServiceError> {
     validate_title(&input.title)?;
     let now = Utc::now().naive_utc();
@@ -145,6 +148,7 @@ pub fn create(conn: &Connection, input: WorkOrderInput) -> Result<WorkOrder, Ser
     get_required(conn, id)
 }
 
+/// 更新工单字段；「待回复」状态变更时自动追加进度日志。
 pub fn update(conn: &Connection, id: i64, input: WorkOrderInput) -> Result<WorkOrder, ServiceError> {
     let existing = get_required(conn, id)?;
     let before = existing.clone();
@@ -168,6 +172,7 @@ pub fn update(conn: &Connection, id: i64, input: WorkOrderInput) -> Result<WorkO
     Ok(saved)
 }
 
+/// 删除工单及其全部进度日志。
 pub fn delete(conn: &Connection, id: i64) -> Result<(), ServiceError> {
     get_required(conn, id)?;
     conn.execute(
@@ -178,6 +183,7 @@ pub fn delete(conn: &Connection, id: i64) -> Result<(), ServiceError> {
     Ok(())
 }
 
+/// 按状态筛选工单；`statuses` 为空表示全部，`include_completed` 控制是否含已完成。
 pub fn find_by_statuses(
     conn: &Connection,
     statuses: &[String],
@@ -217,6 +223,7 @@ pub fn find_by_statuses(
     Ok(result)
 }
 
+/// 按 id 顺序批量重写 priority（0 起递增）。
 pub fn update_priorities(conn: &Connection, ordered_ids: &[i64]) -> Result<(), ServiceError> {
     if ordered_ids.is_empty() {
         return Ok(());
@@ -231,6 +238,7 @@ pub fn update_priorities(conn: &Connection, ordered_ids: &[i64]) -> Result<(), S
     Ok(())
 }
 
+/// 判断工单是否逾期（有截止日期、未完成且已过期）。
 pub fn is_overdue(work_order: &WorkOrder) -> bool {
     if work_order.due_date.is_none() {
         return false;

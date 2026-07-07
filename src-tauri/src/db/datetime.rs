@@ -1,3 +1,5 @@
+//! SQLite 日期时间解析、格式化与列读取（兼容 Java 遗留 epoch 毫秒）。
+
 use chrono::{NaiveDateTime, TimeZone, Utc};
 use rusqlite::types::Value;
 use rusqlite::Row;
@@ -6,6 +8,7 @@ use crate::error::ServiceError;
 
 const DATETIME_FMT: &str = "%Y-%m-%dT%H:%M:%S";
 
+/// 解析 ISO 或常见格式的日期时间字符串。
 pub fn parse_datetime_str(value: &str) -> Result<NaiveDateTime, ServiceError> {
     NaiveDateTime::parse_from_str(value, DATETIME_FMT)
         .or_else(|_| NaiveDateTime::parse_from_str(value, "%Y-%m-%d %H:%M:%S"))
@@ -13,10 +16,12 @@ pub fn parse_datetime_str(value: &str) -> Result<NaiveDateTime, ServiceError> {
         .map_err(|_| ServiceError::Validation(format!("invalid datetime: {value}")))
 }
 
+/// 格式化为 `%Y-%m-%dT%H:%M:%S` 字符串写入 SQLite。
 pub fn format_datetime(value: NaiveDateTime) -> String {
     value.format(DATETIME_FMT).to_string()
 }
 
+/// 从 epoch 毫秒（或秒）转换为 UTC naive 时间。
 pub fn from_epoch_millis(raw: i64) -> Result<NaiveDateTime, ServiceError> {
     let millis = if raw.abs() > 1_000_000_000_000 {
         raw
@@ -29,6 +34,7 @@ pub fn from_epoch_millis(raw: i64) -> Result<NaiveDateTime, ServiceError> {
         .ok_or_else(|| ServiceError::Validation(format!("invalid epoch millis: {raw}")))
 }
 
+/// 从 SQLite `Value` 读取日期时间（支持整数 epoch 与文本）。
 pub fn read_datetime_value(value: &Value) -> Result<NaiveDateTime, ServiceError> {
     match value {
         Value::Integer(n) => from_epoch_millis(*n),
@@ -39,12 +45,14 @@ pub fn read_datetime_value(value: &Value) -> Result<NaiveDateTime, ServiceError>
     }
 }
 
+/// 从查询行读取必填日期时间列。
 pub fn read_datetime_column(row: &Row<'_>, column: &str) -> Result<NaiveDateTime, rusqlite::Error> {
     let value: Value = row.get(column)?;
     read_datetime_value(&value)
         .map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))
 }
 
+/// 从查询行读取可选日期时间列，`NULL` 映射为 `None`。
 pub fn read_optional_datetime_column(
     row: &Row<'_>,
     column: &str,

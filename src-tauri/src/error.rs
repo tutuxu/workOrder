@@ -1,13 +1,20 @@
+//! 后端统一错误类型，Command 层序列化为 JSON 字符串返回前端。
+
 use thiserror::Error;
 
+/// Service 层错误，Command 层映射为 `String` 返回给前端。
 #[derive(Debug, Error)]
 pub enum ServiceError {
+    /// 资源不存在（工单、进度日志等）。
     #[error("not found: {0}")]
     NotFound(String),
+    /// 业务校验失败（空标题、空进度内容、归属不匹配等）。
     #[error("validation: {0}")]
     Validation(String),
+    /// SQLite 读写错误。
     #[error("database: {0}")]
     Database(#[from] rusqlite::Error),
+    /// 文件系统错误（创建 data 目录等）。
     #[error("io: {0}")]
     Io(#[from] std::io::Error),
 }

@@ -36,7 +36,7 @@ const logs = ref<ProgressLog[]>([]);
 const progressInput = ref("");
 const editingLogId = ref<number | null>(null);
 
-const workOrderId = ref<number | undefined>(props.workOrder?.id);
+const workOrderId = ref<number | undefined>(props.workOrder?.id ?? undefined);
 const isNew = computed(() => workOrderId.value == null);
 const showWaitingFields = computed(() => status.value === "WAITING_REPLY");
 const modalTitle = computed(() => (isNew.value ? "新建代办" : "编辑代办"));
@@ -48,7 +48,7 @@ function bindForm(order: WorkOrder) {
   dueDate.value = order.dueDate ? dayjs(order.dueDate).valueOf() : null;
   waitingFor.value = order.waitingFor ?? "";
   waitingReason.value = order.waitingReason ?? "";
-  workOrderId.value = order.id;
+  workOrderId.value = order.id ?? undefined;
 }
 
 async function loadLogs() {
@@ -93,7 +93,7 @@ async function save() {
     const input = buildInput();
     if (isNew.value) {
       const created = await workOrderApi.createWorkOrder(input);
-      workOrderId.value = created.id;
+      workOrderId.value = created.id ?? undefined;
       await flushPendingProgress();
       await loadLogs();
       message.success("已保存");
@@ -243,7 +243,7 @@ function formatDate(value: string) {
     <div v-if="isNew" style="color: #999; margin-bottom: 12px">保存后可追加处置过程</div>
     <template v-else>
       <div v-if="logs.length === 0" style="color: #999; margin-bottom: 12px">暂无过程记录</div>
-      <div v-for="log in logs" :key="log.id" class="timeline-entry">
+      <div v-for="log in logs" :key="log.id ?? log.createdAt" class="timeline-entry">
         <span class="timeline-content">
           {{ formatDate(log.createdAt) }} — {{ log.content }}
         </span>
