@@ -8,6 +8,7 @@ export function useWorkOrders() {
   const loading = ref(false);
   const selectedStatuses = ref<WorkOrderStatus[]>([]);
   const includeCompleted = ref(false);
+  const searchQuery = ref("");
 
   async function refresh() {
     loading.value = true;
@@ -15,6 +16,7 @@ export function useWorkOrders() {
       items.value = await api.listWorkOrders(
         selectedStatuses.value,
         includeCompleted.value,
+        searchQuery.value,
       );
     } catch (error) {
       console.error("listWorkOrders failed", error);
@@ -42,6 +44,7 @@ export function useWorkOrders() {
     loading,
     selectedStatuses,
     includeCompleted,
+    searchQuery,
     refresh,
     isOverdue,
     reorder,

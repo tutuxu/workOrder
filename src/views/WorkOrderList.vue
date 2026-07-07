@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 import { useMessage } from "naive-ui";
 import { VueDraggable } from "vue-draggable-plus";
 import { formatLocalDateTime, formatServerDateTime } from "../utils/datetime";
@@ -18,12 +18,18 @@ const {
   loading,
   selectedStatuses,
   includeCompleted,
+  searchQuery,
   refresh,
   isOverdue,
   reorder,
 } = useWorkOrders();
 
 const localItems = ref<WorkOrder[]>([]);
+let searchTimer: ReturnType<typeof setTimeout> | undefined;
+
+const emptyDescription = computed(() =>
+  searchQuery.value.trim() ? "无匹配代办" : "暂无代办",
+);
 
 onMounted(async () => {
   try {
@@ -34,9 +40,25 @@ onMounted(async () => {
   }
 });
 
-async function onFilterChange() {
+async function syncLocalItems() {
   await refresh();
   localItems.value = [...items.value];
+}
+
+async function onFilterChange() {
+  await syncLocalItems();
+}
+
+function onSearchInput(value: string) {
+  searchQuery.value = value;
+  if (searchTimer) {
+    clearTimeout(searchTimer);
+  }
+  searchTimer = setTimeout(() => {
+    syncLocalItems().catch((error) => {
+      message.error(`搜索失败：${error}`);
+    });
+  }, 300);
 }
 
 async function onDragEnd() {
@@ -68,6 +90,13 @@ defineExpose({ reload });
     <div class="toolbar">
       <n-button type="primary" @click="openNew">新建</n-button>
       <n-button quaternary @click="emit('openSettings')">设置</n-button>
+      <n-input
+        class="search-input"
+        :value="searchQuery"
+        clearable
+        placeholder="搜索标题、描述、待回复信息"
+        @update:value="onSearchInput"
+      />
       <div class="status-filters">
         <span>状态筛选</span>
         <n-checkbox-group v-model:value="selectedStatuses" @update:value="onFilterChange">
@@ -114,7 +143,7 @@ defineExpose({ reload });
         </div>
       </VueDraggable>
 
-      <n-empty v-if="!loading && localItems.length === 0" description="暂无代办" />
+      <n-empty v-if="!loading && localItems.length === 0" :description="emptyDescription" />
     </n-spin>
   </div>
 </template>

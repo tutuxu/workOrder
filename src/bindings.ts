@@ -4,8 +4,8 @@ import { invoke as __TAURI_INVOKE } from "@tauri-apps/api/core";
 
 /** Commands */
 export const commands = {
-	/**  按状态筛选工单列表，按 priority 升序、updated_at 降序排列。 */
-	listWorkOrders: (statuses: string[], includeCompleted: boolean) => __TAURI_INVOKE<WorkOrder[]>("list_work_orders", { statuses, includeCompleted }),
+	/**  按状态筛选工单列表，按 priority 升序、updated_at 降序排列；`query` 为空时不做文本筛选。 */
+	listWorkOrders: (statuses: string[], includeCompleted: boolean, query: string) => __TAURI_INVOKE<WorkOrder[]>("list_work_orders", { statuses, includeCompleted, query }),
 	/**  按 id 获取单条工单，不存在时返回 `NOT_FOUND`。 */
 	getWorkOrder: (id: number) => __TAURI_INVOKE<WorkOrder>("get_work_order", { id }),
 	/**  创建工单；title 必填，priority 自动递增。 */

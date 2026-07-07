@@ -184,10 +184,12 @@ pub fn delete(conn: &Connection, id: i64) -> Result<(), ServiceError> {
 }
 
 /// 按状态筛选工单；`statuses` 为空表示全部，`include_completed` 控制是否含已完成。
+/// `query` 非空时在标题、描述、待回复字段中模糊匹配。
 pub fn find_by_statuses(
     conn: &Connection,
     statuses: &[String],
     include_completed: bool,
+    query: Option<&str>,
 ) -> Result<Vec<WorkOrder>, ServiceError> {
     let mut effective: Vec<WorkOrderStatus> = if statuses.is_empty() {
         WorkOrderStatus::all().to_vec()
@@ -209,15 +211,30 @@ pub fn find_by_statuses(
         return Ok(vec![]);
     }
     let placeholders: Vec<String> = effective.iter().enumerate().map(|(i, _)| format!("?{}", i + 1)).collect();
-    let sql = format!(
+    let mut sql = format!(
         "SELECT id, title, description, status, priority, waiting_for, waiting_reason, due_date, created_at, updated_at
-         FROM work_order WHERE status IN ({}) ORDER BY priority ASC, updated_at DESC",
+         FROM work_order WHERE status IN ({})",
         placeholders.join(", ")
     );
-    let params: Vec<Box<dyn rusqlite::types::ToSql>> = effective
+    let mut params: Vec<Box<dyn rusqlite::types::ToSql>> = effective
         .iter()
         .map(|s| Box::new(s.as_db_str().to_string()) as Box<dyn rusqlite::types::ToSql>)
         .collect();
+    if let Some(q) = query.map(str::trim).filter(|s| !s.is_empty()) {
+        let base = params.len();
+        let pattern = format!("%{q}%");
+        sql.push_str(&format!(
+            " AND (title LIKE ?{} OR description LIKE ?{} OR waiting_for LIKE ?{} OR waiting_reason LIKE ?{})",
+            base + 1,
+            base + 2,
+            base + 3,
+            base + 4,
+        ));
+        for _ in 0..4 {
+            params.push(Box::new(pattern.clone()));
+        }
+    }
+    sql.push_str(" ORDER BY priority ASC, updated_at DESC");
     let param_refs: Vec<&dyn rusqlite::types::ToSql> = params.iter().map(|p| p.as_ref()).collect();
     let mut stmt = conn.prepare(&sql)?;
     let rows = stmt.query_map(param_refs.as_slice(), row_to_work_order)?;
@@ -288,7 +305,7 @@ mod tests {
         let (conn, dir) = temp_db();
         let created = create(&conn, input("Task A")).unwrap();
         assert!(created.id.is_some());
-        let list = find_by_statuses(&conn, &[], false).unwrap();
+        let list = find_by_statuses(&conn, &[], false, None).unwrap();
         assert_eq!(list.len(), 1);
         drop(conn);
         let _ = std::fs::remove_dir_all(dir);
@@ -308,13 +325,13 @@ mod tests {
             },
         )
         .unwrap();
-        let without = find_by_statuses(&conn, &[], false).unwrap();
+        let without = find_by_statuses(&conn, &[], false, None).unwrap();
         assert_eq!(without.len(), 1);
         assert_eq!(without[0].title, "Open");
-        let only_done = find_by_statuses(&conn, &["COMPLETED".to_string()], true).unwrap();
+        let only_done = find_by_statuses(&conn, &["COMPLETED".to_string()], true, None).unwrap();
         assert_eq!(only_done.len(), 1);
         let only_done_without_toggle =
-            find_by_statuses(&conn, &["COMPLETED".to_string()], false).unwrap();
+            find_by_statuses(&conn, &["COMPLETED".to_string()], false, None).unwrap();
         assert_eq!(only_done_without_toggle.len(), 1);
         drop(conn);
         let _ = std::fs::remove_dir_all(dir);
@@ -326,7 +343,7 @@ mod tests {
         let first = create(&conn, input("First")).unwrap();
         let second = create(&conn, input("Second")).unwrap();
         update_priorities(&conn, &[second.id.unwrap(), first.id.unwrap()]).unwrap();
-        let list = find_by_statuses(&conn, &[], true).unwrap();
+        let list = find_by_statuses(&conn, &[], true, None).unwrap();
         assert_eq!(list[0].id, second.id);
         drop(conn);
         let _ = std::fs::remove_dir_all(dir);
@@ -390,9 +407,64 @@ mod tests {
             [],
         )
         .unwrap();
-        let list = find_by_statuses(&conn, &[], false).unwrap();
+        let list = find_by_statuses(&conn, &[], false, None).unwrap();
         assert_eq!(list.len(), 1);
         assert_eq!(list[0].title, "Legacy");
+        drop(conn);
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn search_by_text_fields() {
+        let (conn, dir) = temp_db();
+        create(
+            &conn,
+            WorkOrderInput {
+                title: "网络故障".into(),
+                description: Some("交换机端口异常".into()),
+                ..input("网络故障")
+            },
+        )
+        .unwrap();
+        create(
+            &conn,
+            WorkOrderInput {
+                title: "其他任务".into(),
+                ..input("其他任务")
+            },
+        )
+        .unwrap();
+        create(
+            &conn,
+            WorkOrderInput {
+                title: "待确认".into(),
+                status: WorkOrderStatus::WaitingReply,
+                waiting_for: Some("运维组".into()),
+                waiting_reason: Some("等待排期".into()),
+                ..input("待确认")
+            },
+        )
+        .unwrap();
+
+        let by_title = find_by_statuses(&conn, &[], true, Some("网络")).unwrap();
+        assert_eq!(by_title.len(), 1);
+        assert_eq!(by_title[0].title, "网络故障");
+
+        let by_description = find_by_statuses(&conn, &[], true, Some("交换机")).unwrap();
+        assert_eq!(by_description.len(), 1);
+
+        let by_waiting = find_by_statuses(&conn, &[], true, Some("运维组")).unwrap();
+        assert_eq!(by_waiting.len(), 1);
+
+        let by_reason = find_by_statuses(&conn, &[], true, Some("排期")).unwrap();
+        assert_eq!(by_reason.len(), 1);
+
+        let no_match = find_by_statuses(&conn, &[], true, Some("不存在的关键词")).unwrap();
+        assert!(no_match.is_empty());
+
+        let empty_query = find_by_statuses(&conn, &[], true, Some("  ")).unwrap();
+        assert_eq!(empty_query.len(), 3);
+
         drop(conn);
         let _ = std::fs::remove_dir_all(dir);
     }

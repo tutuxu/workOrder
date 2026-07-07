@@ -11,16 +11,22 @@ fn map_err(err: ServiceError) -> String {
     err.to_string()
 }
 
-/// 按状态筛选工单列表，按 priority 升序、updated_at 降序排列。
+/// 按状态筛选工单列表，按 priority 升序、updated_at 降序排列；`query` 为空时不做文本筛选。
 #[tauri::command]
 #[specta::specta]
 pub fn list_work_orders(
     state: State<'_, AppState>,
     statuses: Vec<String>,
     include_completed: bool,
+    query: String,
 ) -> Result<Vec<WorkOrder>, String> {
     let conn = state.db.lock().map_err(|_| "database lock poisoned".to_string())?;
-    work_order_service::find_by_statuses(&conn, &statuses, include_completed).map_err(map_err)
+    let query_ref = if query.trim().is_empty() {
+        None
+    } else {
+        Some(query.trim())
+    };
+    work_order_service::find_by_statuses(&conn, &statuses, include_completed, query_ref).map_err(map_err)
 }
 
 /// 按 id 获取单条工单，不存在时返回 `NOT_FOUND`。

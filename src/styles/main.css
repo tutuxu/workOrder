@@ -28,6 +28,11 @@ body {
   margin-bottom: 16px;
 }
 
+.search-input {
+  width: 280px;
+  min-width: 200px;
+}
+
 .status-filters {
   display: flex;
   flex-wrap: wrap;
