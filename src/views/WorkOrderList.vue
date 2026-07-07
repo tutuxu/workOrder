@@ -2,7 +2,7 @@
 import { onMounted, ref } from "vue";
 import { useMessage } from "naive-ui";
 import { VueDraggable } from "vue-draggable-plus";
-import dayjs from "dayjs";
+import { formatLocalDateTime, formatServerDateTime } from "../utils/datetime";
 import { useWorkOrders } from "../composables/useWorkOrders";
 import { STATUS_OPTIONS, statusLabel, type WorkOrder } from "../types";
 
@@ -45,11 +45,6 @@ async function onDragEnd() {
     .filter((id): id is number => id != null);
   await reorder(orderedIds);
   localItems.value = [...items.value];
-}
-
-function formatDate(value?: string | null) {
-  if (!value) return "";
-  return dayjs(value).format("YYYY-MM-DD HH:mm");
 }
 
 function openNew() {
@@ -114,8 +109,8 @@ defineExpose({ reload });
         >
           <span>{{ item.title }}</span>
           <span>{{ statusLabel(item.status) }}</span>
-          <span>{{ formatDate(item.dueDate) }}</span>
-          <span>{{ formatDate(item.updatedAt) }}</span>
+          <span>{{ formatLocalDateTime(item.dueDate) }}</span>
+          <span>{{ formatServerDateTime(item.updatedAt) }}</span>
         </div>
       </VueDraggable>
 

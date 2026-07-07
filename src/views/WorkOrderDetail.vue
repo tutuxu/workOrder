@@ -2,6 +2,7 @@
 import { computed, onMounted, ref, watch } from "vue";
 import dayjs from "dayjs";
 import { useMessage } from "naive-ui";
+import { formatServerDateTime } from "../utils/datetime";
 import * as workOrderApi from "../api/workOrders";
 import * as progressLogApi from "../api/progressLogs";
 import {
@@ -194,9 +195,6 @@ async function deleteProgress(log: ProgressLog) {
   }
 }
 
-function formatDate(value: string) {
-  return dayjs(value).format("YYYY-MM-DD HH:mm");
-}
 </script>
 
 <template>
@@ -245,7 +243,7 @@ function formatDate(value: string) {
       <div v-if="logs.length === 0" style="color: #999; margin-bottom: 12px">暂无过程记录</div>
       <div v-for="log in logs" :key="log.id ?? log.createdAt" class="timeline-entry">
         <span class="timeline-content">
-          {{ formatDate(log.createdAt) }} — {{ log.content }}
+          {{ formatServerDateTime(log.createdAt) }} — {{ log.content }}
         </span>
         <n-button text type="primary" @click="startEdit(log)">编辑</n-button>
         <n-popconfirm @positive-click="deleteProgress(log)">
