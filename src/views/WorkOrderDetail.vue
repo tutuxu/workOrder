@@ -5,6 +5,7 @@ import { useMessage } from "naive-ui";
 import { formatServerDateTime } from "../utils/datetime";
 import * as workOrderApi from "../api/workOrders";
 import * as progressLogApi from "../api/progressLogs";
+import AttachmentGallery from "../components/AttachmentGallery.vue";
 import {
   STATUS_OPTIONS,
   statusLabel,
@@ -42,6 +43,9 @@ const progressContent = ref("");
 const progressStatus = ref<WorkOrderStatus>("IN_PROGRESS");
 const editingLogId = ref<number | null>(null);
 
+const workOrderGalleryRef = ref<InstanceType<typeof AttachmentGallery> | null>(null);
+const progressGalleryRef = ref<InstanceType<typeof AttachmentGallery> | null>(null);
+
 const workOrderId = ref<number | undefined>(props.workOrder?.id ?? undefined);
 const isNew = computed(() => workOrderId.value == null);
 const showWaitingFields = computed(() => status.value === "WAITING_REPLY");
@@ -70,6 +74,7 @@ function clearProgressForm() {
   progressTitle.value = "";
   progressContent.value = "";
   progressStatus.value = "IN_PROGRESS";
+  progressGalleryRef.value?.clearStaged();
 }
 
 async function loadLogs() {
@@ -115,6 +120,9 @@ async function save() {
     if (isNew.value) {
       const created = await workOrderApi.createWorkOrder(input);
       workOrderId.value = created.id ?? undefined;
+      if (workOrderId.value != null) {
+        await workOrderGalleryRef.value?.uploadStaged(workOrderId.value);
+      }
       await flushPendingProgress();
       await loadLogs();
       message.success("已保存");
@@ -169,7 +177,11 @@ async function saveProgress() {
       );
       clearProgressForm();
     } else {
-      await progressLogApi.addProgressLog(workOrderId.value, input);
+      const created = await progressLogApi.addProgressLog(workOrderId.value, input);
+      const logId = created.id;
+      if (logId != null) {
+        await progressGalleryRef.value?.uploadStaged(logId);
+      }
       clearProgressForm();
     }
     await loadLogs();
@@ -199,6 +211,7 @@ async function flushPendingProgress() {
 }
 
 function startEdit(log: ProgressLog) {
+  progressGalleryRef.value?.clearStaged();
   editingLogId.value = log.id ?? null;
   progressTitle.value = log.title;
   progressContent.value = log.content ?? "";
@@ -242,6 +255,13 @@ function logKey(log: ProgressLog): string | number {
       </n-form-item>
       <n-form-item label="描述">
         <n-input v-model:value="description" type="textarea" :rows="4" />
+      </n-form-item>
+      <n-form-item label="图片">
+        <AttachmentGallery
+          ref="workOrderGalleryRef"
+          owner-type="work_order"
+          :owner-id="workOrderId"
+        />
       </n-form-item>
       <n-form-item label="状态">
         <n-radio-group v-model:value="status">
@@ -288,6 +308,12 @@ function logKey(log: ProgressLog): string | number {
           <div class="progress-body">
             <p v-if="log.content" class="progress-content">{{ log.content }}</p>
             <p v-else class="progress-content progress-empty">暂无详细内容</p>
+            <AttachmentGallery
+              v-if="log.id != null"
+              owner-type="progress_log"
+              :owner-id="log.id"
+              readonly
+            />
             <n-space>
               <n-button text type="primary" @click="startEdit(log)">编辑</n-button>
               <n-popconfirm @positive-click="deleteProgress(log)">
@@ -330,6 +356,13 @@ function logKey(log: ProgressLog): string | number {
             type="textarea"
             :rows="3"
             placeholder="可选，展开后可见"
+          />
+        </n-form-item>
+        <n-form-item label="图片">
+          <AttachmentGallery
+            ref="progressGalleryRef"
+            owner-type="progress_log"
+            :owner-id="editingLogId ?? undefined"
           />
         </n-form-item>
       </n-form>

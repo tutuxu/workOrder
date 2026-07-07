@@ -1,6 +1,8 @@
 import type { WorkOrderStatus } from "./bindings";
 
 export type {
+  Attachment,
+  OwnerType,
   ProgressLog,
   ProgressLogInput,
   WorkOrder,

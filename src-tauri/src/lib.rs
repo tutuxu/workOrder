@@ -44,6 +44,11 @@ fn specta_builder() -> Builder<tauri::Wry> {
         commands::settings::pick_data_dir,
         commands::settings::change_data_dir,
         commands::settings::restart_app,
+        commands::attachment::list_attachments,
+        commands::attachment::add_attachment_from_file,
+        commands::attachment::add_attachment_from_bytes,
+        commands::attachment::delete_attachment,
+        commands::attachment::pick_attachment_file,
     ])
 }
 

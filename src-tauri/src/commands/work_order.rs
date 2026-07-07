@@ -4,6 +4,7 @@ use tauri::State;
 
 use crate::error::ServiceError;
 use crate::models::work_order::{WorkOrder, WorkOrderInput};
+use crate::services::attachment_service;
 use crate::services::work_order_service;
 use crate::AppState;
 
@@ -65,6 +66,7 @@ pub fn update_work_order(
 #[specta::specta]
 pub fn delete_work_order(state: State<'_, AppState>, id: i64) -> Result<(), String> {
     let conn = state.db.lock().map_err(|_| "database lock poisoned".to_string())?;
+    attachment_service::delete_all_for_work_order(&conn, &state.data_dir, id).map_err(map_err)?;
     work_order_service::delete(&conn, id).map_err(map_err)
 }
 

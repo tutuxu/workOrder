@@ -24,3 +24,16 @@ CREATE TABLE IF NOT EXISTS progress_log (
 CREATE INDEX IF NOT EXISTS idx_work_order_status ON work_order(status);
 CREATE INDEX IF NOT EXISTS idx_work_order_priority ON work_order(priority);
 CREATE INDEX IF NOT EXISTS idx_progress_log_work_order_id ON progress_log(work_order_id);
+
+CREATE TABLE IF NOT EXISTS attachment (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    owner_type VARCHAR(50) NOT NULL,
+    owner_id INTEGER NOT NULL,
+    file_name VARCHAR(255) NOT NULL,
+    original_name VARCHAR(255),
+    mime_type VARCHAR(100) NOT NULL,
+    file_size INTEGER NOT NULL,
+    created_at TIMESTAMP NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_attachment_owner ON attachment(owner_type, owner_id);

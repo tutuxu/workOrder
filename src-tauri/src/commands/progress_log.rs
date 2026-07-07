@@ -3,7 +3,9 @@
 use tauri::State;
 
 use crate::error::ServiceError;
+use crate::models::attachment::OwnerType;
 use crate::models::progress_log::{ProgressLog, ProgressLogInput};
+use crate::services::attachment_service;
 use crate::services::progress_log_service;
 use crate::AppState;
 
@@ -56,5 +58,12 @@ pub fn delete_progress_log(
     work_order_id: i64,
 ) -> Result<(), String> {
     let conn = state.db.lock().map_err(|_| "database lock poisoned".to_string())?;
+    attachment_service::delete_all_for_owner(
+        &conn,
+        &state.data_dir,
+        OwnerType::ProgressLog,
+        log_id,
+    )
+    .map_err(map_err)?;
     progress_log_service::delete_log(&conn, log_id, work_order_id).map_err(map_err)
 }

@@ -30,14 +30,35 @@ export const commands = {
 	pickDataDir: () => __TAURI_INVOKE<string | null>("pick_data_dir"),
 	changeDataDir: (newPath: string) => __TAURI_INVOKE<ChangeDataDirResult>("change_data_dir", { newPath }),
 	restartApp: () => __TAURI_INVOKE<null>("restart_app"),
+	listAttachments: (ownerType: OwnerType, ownerId: number) => __TAURI_INVOKE<Attachment[]>("list_attachments", { ownerType, ownerId }),
+	addAttachmentFromFile: (ownerType: OwnerType, ownerId: number, sourcePath: string) => __TAURI_INVOKE<Attachment>("add_attachment_from_file", { ownerType, ownerId, sourcePath }),
+	addAttachmentFromBytes: (ownerType: OwnerType, ownerId: number, fileName: string, mimeType: string, data: number[]) => __TAURI_INVOKE<Attachment>("add_attachment_from_bytes", { ownerType, ownerId, fileName, mimeType, data }),
+	deleteAttachment: (id: number) => __TAURI_INVOKE<null>("delete_attachment", { id }),
+	/**  打开图片文件选择器，返回选中路径（未选则 None）。 */
+	pickAttachmentFile: () => __TAURI_INVOKE<string | null>("pick_attachment_file"),
 };
 
 /* Types */
+export type Attachment = {
+	id: number | null,
+	ownerType: OwnerType,
+	ownerId: number,
+	fileName: string,
+	originalName: string | null,
+	mimeType: string,
+	fileSize: number,
+	createdAt: string,
+	/**  完整磁盘路径，查询时由 service 填充，不存 DB。 */
+	filePath: string,
+};
+
 export type ChangeDataDirResult = {
 	success: boolean,
 	restartRequired: boolean,
 	newDataDir: string,
 };
+
+export type OwnerType = "work_order" | "progress_log";
 
 /**  工单下的单条进度记录。 */
 export type ProgressLog = {

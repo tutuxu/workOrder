@@ -208,6 +208,75 @@ await commands.listWorkOrders(["IN_PROGRESS"], false);
 
 ---
 
+## 附件 Command
+
+手写封装：[`src/api/attachments.ts`](../../src/api/attachments.ts)
+
+### `list_attachments`
+
+按归属查询附件列表。
+
+| 项 | 说明 |
+|----|------|
+| **TS 方法** | `commands.listAttachments(ownerType, ownerId)` |
+| **参数** | `ownerType: OwnerType`（`work_order` / `progress_log`），`ownerId: number` |
+| **返回** | `Attachment[]`，按 `createdAt` 升序 |
+| **错误** | `DATABASE` |
+
+---
+
+### `add_attachment_from_file`
+
+从本地路径复制图片到附件目录。
+
+| 项 | 说明 |
+|----|------|
+| **TS 方法** | `commands.addAttachmentFromFile(ownerType, ownerId, sourcePath)` |
+| **参数** | `ownerType`, `ownerId`, `sourcePath: string` |
+| **返回** | 新建 `Attachment` |
+| **错误** | `NOT_FOUND`（归属记录不存在）, `VALIDATION`（非图片/超 20MB/魔数不匹配）, `IO`, `DATABASE` |
+
+---
+
+### `add_attachment_from_bytes`
+
+从字节写入图片（剪贴板粘贴）。
+
+| 项 | 说明 |
+|----|------|
+| **TS 方法** | `commands.addAttachmentFromBytes(ownerType, ownerId, fileName, mimeType, data)` |
+| **参数** | `ownerType`, `ownerId`, `fileName`, `mimeType`, `data: number[]` |
+| **返回** | 新建 `Attachment` |
+| **错误** | 同 `add_attachment_from_file` |
+
+---
+
+### `delete_attachment`
+
+删除单条附件记录及磁盘文件。
+
+| 项 | 说明 |
+|----|------|
+| **TS 方法** | `commands.deleteAttachment(id)` |
+| **参数** | `id: number` |
+| **返回** | `void` |
+| **错误** | `NOT_FOUND`, `IO`, `DATABASE` |
+
+---
+
+### `pick_attachment_file`
+
+打开图片文件选择器。
+
+| 项 | 说明 |
+|----|------|
+| **TS 方法** | `commands.pickAttachmentFile()` |
+| **参数** | 无 |
+| **返回** | `string \| null`（用户取消时为 `null`） |
+| **错误** | 对话框插件错误 |
+
+---
+
 ## 设置
 
 | Command | 说明 |

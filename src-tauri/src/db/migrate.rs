@@ -41,3 +41,21 @@ pub fn migrate_progress_log(conn: &Connection) -> Result<(), ServiceError> {
 
     Ok(())
 }
+
+/// 确保 attachment 表存在（存量库升级）。
+pub fn migrate_attachment(conn: &Connection) -> Result<(), ServiceError> {
+    conn.execute_batch(
+        "CREATE TABLE IF NOT EXISTS attachment (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            owner_type VARCHAR(50) NOT NULL,
+            owner_id INTEGER NOT NULL,
+            file_name VARCHAR(255) NOT NULL,
+            original_name VARCHAR(255),
+            mime_type VARCHAR(100) NOT NULL,
+            file_size INTEGER NOT NULL,
+            created_at TIMESTAMP NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_attachment_owner ON attachment(owner_type, owner_id);",
+    )?;
+    Ok(())
+}
