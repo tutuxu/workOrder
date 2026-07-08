@@ -137,7 +137,9 @@ function close() {
     v-model:show="show"
     preset="card"
     title="设置"
+    class="settings-modal"
     style="width: 720px"
+    content-scrollable
     @after-leave="close"
   >
     <n-spin :show="loading">

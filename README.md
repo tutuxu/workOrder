@@ -210,6 +210,8 @@ release/
 
 `workOrder-release` 分支**仅包含可运行产物**（无源码），供他人直接克隆使用。本地打包完成后，可手动更新该分支：
 
+> 中文文件名乱码预防与修复见 **[docs/release-playbook.md](docs/release-playbook.md)**。
+
 ```bash
 npm run package:win
 git checkout workOrder-release

@@ -170,13 +170,15 @@ body {
   font-size: 12px;
 }
 
-.work-order-detail-modal {
+.work-order-detail-modal,
+.settings-modal {
   align-self: flex-start;
   margin: 16px auto;
   max-height: calc(100vh - 32px);
 }
 
-.work-order-detail-modal.n-card--content-scrollable > .n-card__content-scrollbar {
+.work-order-detail-modal.n-card--content-scrollable > .n-card__content-scrollbar,
+.settings-modal.n-card--content-scrollable > .n-card__content-scrollbar {
   flex: 1;
   min-height: 0;
 }
