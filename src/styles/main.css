@@ -42,7 +42,7 @@ body {
 
 .list-row {
   display: grid;
-  grid-template-columns: 2fr 1fr 1fr 1fr;
+  grid-template-columns: auto 1fr;
   gap: 12px;
   align-items: center;
   padding: 12px 16px;
@@ -50,8 +50,21 @@ body {
   border: 1px solid #e8e8e8;
   border-radius: 8px;
   margin-bottom: 8px;
-  cursor: pointer;
   transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.list-row-main {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 1fr;
+  gap: 12px;
+  align-items: center;
+  cursor: pointer;
+  min-width: 0;
+}
+
+.list-row.selected-row {
+  border-color: #18a058;
+  background: #f6ffed;
 }
 
 .list-row:hover {
@@ -59,6 +72,7 @@ body {
 }
 
 .list-header {
+  grid-template-columns: auto 2fr 1fr 1fr 1fr;
   font-weight: 600;
   color: #666;
   background: transparent;
