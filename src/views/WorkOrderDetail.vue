@@ -1,12 +1,19 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch, type Ref } from "vue";
 import dayjs from "dayjs";
-import { useMessage } from "naive-ui";
+import { useDialog, useMessage } from "naive-ui";
 import { formatServerDateTime } from "../utils/datetime";
 import * as workOrderApi from "../api/workOrders";
 import * as progressLogApi from "../api/progressLogs";
 import AttachmentGallery from "../components/AttachmentGallery.vue";
 import { useStatusConfig } from "../composables/useStatusConfig";
+import {
+  getEffectiveBinding,
+  registerShortcut,
+  shortcutUiState,
+  unregisterShortcut,
+} from "../composables/useShortcuts";
+import { bindingsEqual, eventToBinding } from "../utils/shortcutFormat";
 import type {
   ProgressLog,
   ProgressLogInput,
@@ -33,6 +40,7 @@ const emit = defineEmits<{
 }>();
 
 const message = useMessage();
+const dialog = useDialog();
 const {
   statusOptions,
   statusLabel,
@@ -67,6 +75,10 @@ const workOrderId = ref<number | undefined>(props.workOrder?.id ?? undefined);
 const isNew = computed(() => workOrderId.value == null);
 const modalTitle = computed(() => (isNew.value ? "新建代办" : "编辑代办"));
 const activeFields = computed(() => fieldsForStatus(status.value));
+const saveButtonLabel = computed(() => {
+  const binding = getEffectiveBinding("detail.save");
+  return binding ? `保存 (${binding})` : "保存";
+});
 
 function bindForm(order: WorkOrder) {
   title.value = order.title ?? "";
@@ -149,7 +161,7 @@ function validateExtraFieldsClient(): boolean {
 function buildProgressInput(): ProgressLogInput {
   return {
     title: progressTitle.value.trim(),
-    content: progressContent.value.trim() || null,
+    content: progressContent.value.trim() || "",
     status: progressStatus.value,
   };
 }
@@ -187,7 +199,6 @@ async function loadLogs() {
 }
 
 onMounted(async () => {
-  document.addEventListener("keydown", onGlobalKeydown);
   await loadStatusConfig();
   if (props.workOrder) {
     bindForm(props.workOrder);
@@ -195,7 +206,66 @@ onMounted(async () => {
   } else {
     resetForNew();
   }
+
+  registerShortcut("detail.save", {
+    handler: () => {
+      void save();
+    },
+    enabled: () => show.value && !saving.value,
+  });
+  registerShortcut("detail.delete", {
+    handler: () => {
+      dialog.warning({
+        title: "确认删除",
+        content: "确定删除该代办事项吗？",
+        positiveText: "删除",
+        negativeText: "取消",
+        onPositiveClick: () => {
+          void confirmDelete();
+        },
+      });
+    },
+    enabled: () => show.value && !isNew.value,
+  });
+  registerShortcut("detail.close", {
+    handler: () => {
+      close();
+    },
+    enabled: () => show.value && !showProgressForm.value,
+  });
+  registerShortcut("detail.addProgress", {
+    handler: () => {
+      openProgressForm();
+    },
+    enabled: () => show.value && !isNew.value && !showProgressForm.value,
+  });
+  registerShortcut("detail.saveProgress", {
+    handler: () => {
+      void saveProgress();
+    },
+    enabled: () => show.value && showProgressForm.value,
+  });
+  registerShortcut("detail.cancelProgress", {
+    handler: () => {
+      clearProgressForm();
+    },
+    enabled: () => show.value && showProgressForm.value,
+  });
+  registerShortcut("detail.focusNext", {
+    handler: (event) => {
+      handleFormAssist(event);
+    },
+    enabled: () => show.value,
+  });
 });
+
+watch(
+  showProgressForm,
+  (visible) => {
+    shortcutUiState.progressFormVisible.value = visible;
+  },
+  { immediate: true },
+);
 
 watch(
   () => props.workOrder,
@@ -346,26 +416,14 @@ function logKey(log: ProgressLog): string | number {
 }
 
 function onTextKeydown(e: KeyboardEvent, valueRef: Ref<string>) {
-  insertTextIndent(valueRef, e);
+  const binding = getEffectiveBinding("detail.textIndent");
+  const pressed = eventToBinding(e);
+  if (binding && pressed && bindingsEqual(binding, pressed)) {
+    insertTextIndent(valueRef, e);
+  }
 }
 
-function onTitleKeydown(e: KeyboardEvent) {
-  onTextKeydown(e, title);
-}
-
-function onDescriptionKeydown(e: KeyboardEvent) {
-  onTextKeydown(e, description);
-}
-
-function onProgressTitleKeydown(e: KeyboardEvent) {
-  onTextKeydown(e, progressTitle);
-}
-
-function onProgressContentKeydown(e: KeyboardEvent) {
-  onTextKeydown(e, progressContent);
-}
-
-function onFormKeydown(e: KeyboardEvent) {
+function handleFormAssist(e: KeyboardEvent) {
   if (!isCapsLockKey(e)) return;
   if (resolveTextInput(e.target)) return;
   e.preventDefault();
@@ -387,16 +445,39 @@ function onFormKeydown(e: KeyboardEvent) {
   }
 }
 
-function onGlobalKeydown(e: KeyboardEvent) {
-  if (!show.value || saving.value) return;
-  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
-    e.preventDefault();
-    void save();
+function onTitleKeydown(e: KeyboardEvent) {
+  onTextKeydown(e, title);
+}
+
+function onDescriptionKeydown(e: KeyboardEvent) {
+  onTextKeydown(e, description);
+}
+
+function onProgressTitleKeydown(e: KeyboardEvent) {
+  onTextKeydown(e, progressTitle);
+}
+
+function onProgressContentKeydown(e: KeyboardEvent) {
+  onTextKeydown(e, progressContent);
+}
+
+function onFormKeydown(e: KeyboardEvent) {
+  const binding = getEffectiveBinding("detail.focusNext");
+  const pressed = eventToBinding(e);
+  if (binding && pressed && bindingsEqual(binding, pressed)) {
+    handleFormAssist(e);
   }
 }
 
 onUnmounted(() => {
-  document.removeEventListener("keydown", onGlobalKeydown);
+  shortcutUiState.progressFormVisible.value = false;
+  unregisterShortcut("detail.save");
+  unregisterShortcut("detail.delete");
+  unregisterShortcut("detail.close");
+  unregisterShortcut("detail.addProgress");
+  unregisterShortcut("detail.saveProgress");
+  unregisterShortcut("detail.cancelProgress");
+  unregisterShortcut("detail.focusNext");
 });
 
 function fieldInputType(field: StatusField): "text" | "textarea" {
@@ -580,7 +661,7 @@ function fieldInputType(field: StatusField): "text" | "textarea" {
 
     <template #footer>
       <n-space justify="end">
-        <n-button type="primary" :loading="saving" @click="save">保存 (Ctrl+S)</n-button>
+        <n-button type="primary" :loading="saving" @click="save">{{ saveButtonLabel }}</n-button>
         <n-popconfirm v-if="!isNew" @positive-click="confirmDelete">
           <template #trigger>
             <n-button type="error">删除</n-button>

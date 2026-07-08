@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use rusqlite::Connection;
@@ -44,7 +45,10 @@ pub fn change_data_dir(
     copy_data_dir(current_data_dir, &new_dir)?;
     verify_migration(current_data_dir, &new_dir)?;
 
-    let settings = Settings::new(new_dir.display().to_string());
+    let mut settings = settings::load(settings_path)?.unwrap_or_else(|| {
+        Settings::new(current_data_dir.display().to_string())
+    });
+    settings.data_dir = new_dir.display().to_string();
     settings::save(settings_path, &settings)?;
 
     Ok(ChangeDataDirResult {
@@ -103,6 +107,25 @@ pub fn import_backup(
         success: true,
         restart_required: true,
     })
+}
+
+pub fn get_shortcut_bindings(settings_path: &PathBuf) -> Result<HashMap<String, String>, ServiceError> {
+    let settings = settings::load(settings_path)?;
+    Ok(settings
+        .map(|s| s.shortcut_bindings)
+        .unwrap_or_default())
+}
+
+pub fn save_shortcut_bindings(
+    settings_path: &PathBuf,
+    data_dir: &Path,
+    bindings: HashMap<String, String>,
+) -> Result<(), ServiceError> {
+    let mut settings = settings::load(settings_path)?.unwrap_or_else(|| {
+        Settings::new(data_dir.display().to_string())
+    });
+    settings.shortcut_bindings = bindings;
+    settings::save(settings_path, &settings)
 }
 
 pub fn apply_pending_restore(

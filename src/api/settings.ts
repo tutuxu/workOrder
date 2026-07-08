@@ -4,9 +4,10 @@ import type {
   ExportBackupResult,
   ImportBackupResult,
   SettingsInfo,
+  ShortcutBindingsPayload,
 } from "../bindings";
 
-export type { ChangeDataDirResult, ExportBackupResult, ImportBackupResult, SettingsInfo };
+export type { ChangeDataDirResult, ExportBackupResult, ImportBackupResult, SettingsInfo, ShortcutBindingsPayload };
 
 export function getSettings(): Promise<SettingsInfo> {
   return commands.getSettings();
@@ -38,4 +39,14 @@ export function importBackup(zipPath: string): Promise<ImportBackupResult> {
 
 export function restartApp(): Promise<null> {
   return commands.restartApp();
+}
+
+export function getShortcutBindings(): Promise<ShortcutBindingsPayload> {
+  return commands.getShortcutBindings();
+}
+
+export function saveShortcutBindings(
+  bindings: Record<string, string>,
+): Promise<null> {
+  return commands.saveShortcutBindings(bindings);
 }

@@ -54,6 +54,8 @@ fn specta_builder() -> Builder<tauri::Wry> {
         commands::settings::export_backup,
         commands::settings::import_backup,
         commands::settings::restart_app,
+        commands::settings::get_shortcut_bindings,
+        commands::settings::save_shortcut_bindings,
         commands::attachment::list_attachments,
         commands::attachment::add_attachment_from_file,
         commands::attachment::add_attachment_from_bytes,

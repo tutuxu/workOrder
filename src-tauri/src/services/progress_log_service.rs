@@ -71,7 +71,7 @@ pub fn add_log(
         .content
         .as_deref()
         .map(str::trim)
-        .filter(|s| !s.is_empty());
+        .unwrap_or("");
     conn.execute(
         "INSERT INTO progress_log (work_order_id, title, content, status, created_at) VALUES (?1, ?2, ?3, ?4, ?5)",
         params![
@@ -101,7 +101,7 @@ pub fn update_log(
         .content
         .as_deref()
         .map(str::trim)
-        .filter(|s| !s.is_empty());
+        .unwrap_or("");
     conn.execute(
         "UPDATE progress_log SET title = ?1, content = ?2, status = ?3 WHERE id = ?4",
         params![
@@ -154,6 +154,36 @@ mod tests {
             content: Some("Detailed notes".into()),
             status: "IN_PROGRESS".into(),
         }
+    }
+
+    #[test]
+    fn add_log_with_empty_content() {
+        let (conn, dir) = temp_db();
+        let wo = create(
+            &conn,
+            WorkOrderInput {
+                title: "With log".into(),
+                description: None,
+                status: "NOT_STARTED".into(),
+                extra_fields: None,
+                due_date: None,
+            },
+            &config(),
+        )
+        .unwrap();
+        let log = add_log(
+            &conn,
+            wo.id.unwrap(),
+            &ProgressLogInput {
+                title: "Title only".into(),
+                content: None,
+                status: "IN_PROGRESS".into(),
+            },
+        )
+        .unwrap();
+        assert_eq!(log.content.as_deref(), Some(""));
+        drop(conn);
+        let _ = std::fs::remove_dir_all(dir);
     }
 
     #[test]

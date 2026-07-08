@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
-import { useMessage } from "naive-ui";
+import { computed, onMounted, onUnmounted, ref } from "vue";
+import { useDialog, useMessage } from "naive-ui";
 import { VueDraggable } from "vue-draggable-plus";
 import * as workOrderApi from "../api/workOrders";
 import { formatLocalDateTime, formatServerDateTime } from "../utils/datetime";
 import { useWorkOrders } from "../composables/useWorkOrders";
 import { useStatusConfig } from "../composables/useStatusConfig";
+import { registerShortcut, unregisterShortcut } from "../composables/useShortcuts";
 import { rowStyleForStatus } from "../utils/statusColors";
 
 const emit = defineEmits<{
@@ -14,6 +15,7 @@ const emit = defineEmits<{
 }>();
 
 const message = useMessage();
+const dialog = useDialog();
 const { statusOptions, statusLabel, statusColor, load: loadStatusConfig } = useStatusConfig();
 
 const {
@@ -60,6 +62,35 @@ onMounted(async () => {
   } catch (error) {
     message.error(`加载失败：${error}`);
   }
+
+  registerShortcut("list.new", {
+    handler: () => openNew(),
+    enabled: () => true,
+  });
+  registerShortcut("list.settings", {
+    handler: () => emit("openSettings"),
+    enabled: () => true,
+  });
+  registerShortcut("list.deleteSelected", {
+    handler: () => {
+      dialog.warning({
+        title: "确认删除",
+        content: `确定删除选中的 ${selectedCount.value} 条代办事项吗？`,
+        positiveText: "删除",
+        negativeText: "取消",
+        onPositiveClick: () => {
+          void deleteSelected();
+        },
+      });
+    },
+    enabled: () => selectedCount.value > 0,
+  });
+});
+
+onUnmounted(() => {
+  unregisterShortcut("list.new");
+  unregisterShortcut("list.settings");
+  unregisterShortcut("list.deleteSelected");
 });
 
 function clearSelection() {

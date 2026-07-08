@@ -40,6 +40,8 @@ export const commands = {
 	exportBackup: (savePath: string) => __TAURI_INVOKE<ExportBackupResult>("export_backup", { savePath }),
 	importBackup: (zipPath: string) => __TAURI_INVOKE<ImportBackupResult>("import_backup", { zipPath }),
 	restartApp: () => __TAURI_INVOKE<null>("restart_app"),
+	getShortcutBindings: () => __TAURI_INVOKE<ShortcutBindingsPayload>("get_shortcut_bindings"),
+	saveShortcutBindings: (bindings: { [key in string]: string }) => __TAURI_INVOKE<null>("save_shortcut_bindings", { bindings }),
 	listAttachments: (ownerType: OwnerType, ownerId: number) => __TAURI_INVOKE<Attachment[]>("list_attachments", { ownerType, ownerId }),
 	addAttachmentFromFile: (ownerType: OwnerType, ownerId: number, sourcePath: string) => __TAURI_INVOKE<Attachment>("add_attachment_from_file", { ownerType, ownerId, sourcePath }),
 	addAttachmentFromBytes: (ownerType: OwnerType, ownerId: number, fileName: string, mimeType: string, data: number[]) => __TAURI_INVOKE<Attachment>("add_attachment_from_bytes", { ownerType, ownerId, fileName, mimeType, data }),
@@ -107,6 +109,10 @@ export type SettingsInfo = {
 	settingsPath: string,
 	envOverride: boolean,
 	defaultDataDir: string,
+};
+
+export type ShortcutBindingsPayload = {
+	bindings: { [key in string]: string },
 };
 
 /**  数据目录中的 `status_config.json` 根结构。 */

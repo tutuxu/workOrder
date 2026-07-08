@@ -1,8 +1,11 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, onUnmounted, ref } from "vue";
 import { useDialog, useMessage } from "naive-ui";
 import * as settingsApi from "../api/settings";
 import StatusConfigPanel from "../components/StatusConfigPanel.vue";
+import ShortcutConfigPanel from "../components/ShortcutConfigPanel.vue";
+import { registerShortcut, unregisterShortcut } from "../composables/useShortcuts";
+
 const emit = defineEmits<{
   closed: [];
 }>();
@@ -40,8 +43,18 @@ onMounted(async () => {
   } finally {
     loading.value = false;
   }
+
+  registerShortcut("settings.close", {
+    handler: () => {
+      show.value = false;
+    },
+    enabled: () => show.value,
+  });
 });
 
+onUnmounted(() => {
+  unregisterShortcut("settings.close");
+});
 async function browse() {
   try {
     const picked = await settingsApi.pickDataDir();
@@ -168,8 +181,13 @@ function close() {
 
         <n-divider />
 
-        <n-form-item label="数据备份">
-          <n-space vertical>
+        <n-form-item label="快捷键">
+          <ShortcutConfigPanel />
+        </n-form-item>
+
+        <n-divider />
+
+        <n-form-item label="数据备份">          <n-space vertical>
             <n-text depth="3" style="font-size: 13px">
               备份包含全部工单、进度记录和附件。恢复将替换当前所有数据，完成后需重启应用。
             </n-text>

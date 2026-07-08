@@ -2,8 +2,11 @@ use tauri::{AppHandle, State};
 use tauri_plugin_dialog::DialogExt;
 
 use crate::error::ServiceError;
+use std::collections::HashMap;
+
 use crate::models::settings::{
     ChangeDataDirResult, ExportBackupResult, ImportBackupResult, SettingsInfo,
+    ShortcutBindingsPayload,
 };
 use crate::services::settings_service;
 use crate::settings::backup;
@@ -86,4 +89,22 @@ pub fn import_backup(
 #[specta::specta]
 pub fn restart_app(app: AppHandle) -> Result<(), String> {
     app.restart();
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn get_shortcut_bindings(state: State<'_, AppState>) -> Result<ShortcutBindingsPayload, String> {
+    settings_service::get_shortcut_bindings(&state.settings_path)
+        .map(|bindings| ShortcutBindingsPayload { bindings })
+        .map_err(map_err)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn save_shortcut_bindings(
+    state: State<'_, AppState>,
+    bindings: HashMap<String, String>,
+) -> Result<(), String> {
+    settings_service::save_shortcut_bindings(&state.settings_path, &state.data_dir, bindings)
+        .map_err(map_err)
 }

@@ -3,6 +3,7 @@
 pub mod backup;
 pub mod migration;
 
+use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -19,6 +20,8 @@ pub struct Settings {
     pub data_dir: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub pending_restore_from: Option<String>,
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    pub shortcut_bindings: HashMap<String, String>,
 }
 
 impl Settings {
@@ -27,6 +30,7 @@ impl Settings {
             version: SETTINGS_VERSION,
             data_dir: data_dir.into(),
             pending_restore_from: None,
+            shortcut_bindings: HashMap::new(),
         }
     }
 }
@@ -86,6 +90,19 @@ mod tests {
         save(&path, &settings).unwrap();
         let loaded = load(&path).unwrap().expect("settings exist");
         assert_eq!(loaded, settings);
+        let _ = fs::remove_file(&path);
+    }
+
+    #[test]
+    fn save_and_load_roundtrip_with_shortcut_bindings() {
+        let path = temp_settings_path();
+        let mut settings = Settings::new(r"D:\workorder-data");
+        settings
+            .shortcut_bindings
+            .insert("detail.save".into(), "Ctrl+Shift+S".into());
+        save(&path, &settings).unwrap();
+        let loaded = load(&path).unwrap().expect("settings exist");
+        assert_eq!(loaded.shortcut_bindings.get("detail.save").map(String::as_str), Some("Ctrl+Shift+S"));
         let _ = fs::remove_file(&path);
     }
 }

@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use serde::{Deserialize, Serialize};
 use specta::Type;
 
@@ -30,4 +32,10 @@ pub struct ExportBackupResult {
 pub struct ImportBackupResult {
     pub success: bool,
     pub restart_required: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct ShortcutBindingsPayload {
+    pub bindings: HashMap<String, String>,
 }

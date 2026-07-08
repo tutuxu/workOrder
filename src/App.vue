@@ -1,11 +1,16 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { onMounted, onUnmounted, ref } from "vue";
 import { dateZhCN, zhCN } from "naive-ui";
 import { isTauri } from "./tauri";
 import WorkOrderList from "./views/WorkOrderList.vue";
 import WorkOrderDetail from "./views/WorkOrderDetail.vue";
 import Settings from "./views/Settings.vue";
 import type { WorkOrder } from "./types";
+import {
+  handleShortcutKeydown,
+  loadShortcutBindings,
+  shortcutUiState,
+} from "./composables/useShortcuts";
 
 const detailVisible = ref(false);
 const selectedOrder = ref<WorkOrder | null>(null);
@@ -34,6 +39,23 @@ function onSettingsClosed() {
   settingsVisible.value = false;
   void listRef.value?.reload();
 }
+
+function onGlobalKeydown(event: KeyboardEvent) {
+  handleShortcutKeydown(event, {
+    settingsOpen: settingsVisible.value,
+    detailOpen: detailVisible.value,
+    progressFormVisible: shortcutUiState.progressFormVisible.value,
+  });
+}
+
+onMounted(() => {
+  void loadShortcutBindings();
+  document.addEventListener("keydown", onGlobalKeydown);
+});
+
+onUnmounted(() => {
+  document.removeEventListener("keydown", onGlobalKeydown);
+});
 </script>
 
 <template>
