@@ -1,197 +1,241 @@
-﻿# workOrder
+# workOrder
 
-涓汉宸ヤ綔浜嬮」杩借釜妗岄潰搴旂敤銆傚熀浜?Tauri 2 + Vue 3 + Rust锛屾暟鎹繚瀛樺湪鏈湴 SQLite銆?
-## 鑾峰彇鍙繍琛岀増鏈紙鏈€缁堢敤鎴凤級
+个人工作事项追踪桌面应用。基于 Tauri 2 + Vue 3 + Rust，数据保存在本地 SQLite。
 
-鑻ヤ綘**鍙渶瑕佽繍琛岀▼搴忋€佷笉闇€瑕佹簮鐮?*锛岃鍏嬮殕鍙戝竷鍒嗘敮锛?
+## 获取可运行版本（最终用户）
+
+若你**只需要运行程序、不需要源码**，请克隆发布分支：
+
 ```bash
-git clone -b workOrder-release <浠撳簱鍦板潃>
+git clone -b workOrder-release <仓库地址>
 ```
 
-鍏嬮殕鍚庣洰褰曠粨鏋勫涓嬶紝鍙洿鎺ヤ娇鐢細
+克隆后目录结构如下，可直接使用：
 
 ```
-鈹溾攢鈹€ README.md
-鈹溾攢鈹€ portable/          # 渚挎惡鐗堬紝鍙屽嚮 workOrder.exe 杩愯
-鈹斺攢鈹€ installer/         # 瀹夎鍖咃紙setup.exe / msi锛?```
+├── README.md
+├── portable/          # 便携版，双击 workOrder.exe 运行
+└── installer/         # 安装包（setup.exe / msi）
+```
 
-涔熷彲鍦?GitHub 涓婂皢鍒嗘敮鍒囨崲涓?`workOrder-release` 鍚庝笅杞?ZIP銆?
+也可在 GitHub 上将分支切换为 `workOrder-release` 后下载 ZIP。
+
 ---
 
-## 涓€閿繍琛岋紙鏈€缁堢敤鎴凤級
+## 一键运行（最终用户）
 
-鑻ヤ綘鎷垮埌鐨勬槸宸叉墦鍖呯殑 **`portable`** 鏂囦欢澶癸紝鏃犻渶瀹夎 Node.js 鎴?Rust锛?
-1. 瑙ｅ帇鏁翠釜 `portable` 鏂囦欢澶瑰埌浠绘剰浣嶇疆锛堣矾寰勫敖閲忎笉鍚壒娈婂瓧绗︼級
-2. 鍙屽嚮 **`workOrder.exe`**锛屾垨鍙屽嚮 **`鍚姩 workOrder.bat`**
-3. 棣栨杩愯浼氬湪鍚岀洰褰曚笅鑷姩鍒涘缓 `data/workorder.db` 淇濆瓨鏁版嵁
+若你拿到的是已打包的 **`portable`** 文件夹，无需安装 Node.js 或 Rust：
 
-### 鐩綍璇存槑
+1. 解压整个 `portable` 文件夹到任意位置（路径尽量不含特殊字符）
+2. 双击 **`workOrder.exe`**，或双击 **`启动 workOrder.bat`**
+3. 首次运行会在同目录下自动创建 `data/workorder.db` 保存数据
+
+### 目录说明
 
 ```
 portable/
-鈹溾攢鈹€ workOrder.exe          # 涓荤▼搴忥紝鍙屽嚮杩愯
-鈹溾攢鈹€ 鍚姩 workOrder.bat     # 鍚姩鑴氭湰锛堟晥鏋滃悓涓婏級
-鈹斺攢鈹€ data/                  # 鏁版嵁鐩綍锛堥娆¤繍琛屽悗鐢熸垚 workorder.db锛?```
+├── workOrder.exe          # 主程序，双击运行
+├── 启动 workOrder.bat     # 启动脚本（效果同上）
+└── data/                  # 数据目录（首次运行后生成 workorder.db）
+```
 
-### 绯荤粺瑕佹眰
+### 系统要求
 
-- Windows 10 鎴栨洿楂樼増鏈紙闇€ WebView2 杩愯鏃讹紝Win10+ 閫氬父宸查瑁咃級
-- 鑻ユ棤娉曞惎鍔紝鍙敼鐢ㄥ畨瑁呭寘锛堣涓嬫枃锛?
-### 瀹夎鍖呮柟寮忥紙鍙€夛級
+- Windows 10 或更高版本（需 WebView2 运行时，Win10+ 通常已预装）
+- 若无法启动，可改用安装包（见下文）
 
-鑻ユ彁渚涚殑鏄?`installer` 鐩綍锛?
-| 鏂囦欢 | 璇存槑 |
+### 安装包方式（可选）
+
+若提供的是 `installer` 目录：
+
+| 文件 | 说明 |
 |------|------|
-| `workOrder_1.1.0_x64-setup.exe` | NSIS 瀹夎绋嬪簭锛屾帹鑽愶紱浼氳嚜鍔ㄥ鐞?WebView2 |
-| `workOrder_1.1.0_x64_en-US.msi` | MSI 瀹夎鍖?|
+| `workOrder_1.1.1_x64-setup.exe` | NSIS 安装程序，推荐；会自动处理 WebView2 |
+| `workOrder_1.1.1_x64_en-US.msi` | MSI 安装包 |
 
-瀹夎鍚庝粠寮€濮嬭彍鍗曟垨妗岄潰蹇嵎鏂瑰紡鍚姩銆傛暟鎹粯璁や繚瀛樺湪瀹夎鐩綍鏃佺殑 `data/` 涓嬨€?
+安装后从开始菜单或桌面快捷方式启动。数据默认保存在安装目录旁的 `data/` 下。
+
 ---
 
-## 鐗堟湰鍗囩骇鎸囧崡锛堟渶缁堢敤鎴凤級
+## 版本升级指南（最终用户）
 
-褰撳墠鐗堟湰**涓嶄細鑷姩鏇存柊**锛岄渶瑕佹墜鍔ㄤ笅杞芥柊鐗堟湰骞惰鐩栧畨瑁呫€備粠 **v1.0 鍗囩骇鍒?1.1** 鐨勮缁嗚鏄庤 **[docs/upgrade/v1.0-to-1.1.md](docs/upgrade/v1.0-to-1.1.md)**銆?
-鍗囩骇鍚庨娆″惎鍔ㄦ椂锛岀▼搴忎細鑷姩杩佺Щ鏁版嵁搴撳苟鐢熸垚 `status_config.json`锛?*鏃犻渶鎵嬪姩鏀规暟鎹簱**銆?
-### 浠?v1.0 蹇€熷崌绾э紙鎽樿锛?
-1. 锛堟帹鑽愶級鍦?v1.0 **璁剧疆 鈫?澶囦唤** 瀵煎嚭 ZIP锛屾垨澶嶅埗 `data/` 鏂囦欢澶?2. **瀹屽叏閫€鍑?* workOrder
-3. 鐢?v1.1 瀹夎鍖呰鐩栧畨瑁咃紝鎴栦粎鐢ㄦ柊 `workOrder.exe` 鏇挎崲鏃?exe锛?*淇濈暀 `data/`**锛?4. 鍚姩 v1.1 鈥?鑷姩瀹屾垚杩佺Щ
+当前版本**不会自动更新**，需要手动下载新版本并覆盖安装。从 **v1.0 升级到 1.1** 的详细说明见 **[docs/upgrade/v1.0-to-1.1.md](docs/upgrade/v1.0-to-1.1.md)**。
 
-鍙€夛細渚挎惡鍖呬腑鍙屽嚮 **`杩佺Щ鏁版嵁.bat`**锛屽湪涓嶆墦寮€涓荤晫闈㈢殑鎯呭喌涓嬪厛杩佺Щ锛堜笌鍚姩鏃堕€昏緫鐩稿悓锛夈€?
-### 鍗囩骇鍓?
-1. **瀹屽叏閫€鍑?* workOrder锛堢‘璁や换鍔＄鐞嗗櫒涓棤 `workOrder.exe` 杩涚▼锛?2. **澶囦唤鏁版嵁**锛堟帹鑽愶級锛氬鍒?`workorder.db` 鍒板畨鍏ㄤ綅缃?
-鏁版嵁鏂囦欢甯歌浣嶇疆锛?
-| 浣跨敤鏂瑰紡 | 榛樿璺緞 |
+升级后首次启动时，程序会自动迁移数据库并生成 `status_config.json`，**无需手动改数据库**。
+
+### 从 v1.0 快速升级（摘要）
+
+1. （推荐）在 v1.0 **设置 → 备份** 导出 ZIP，或复制 `data/` 文件夹
+2. **完全退出** workOrder
+3. 用 v1.1 安装包覆盖安装，或仅用新 `workOrder.exe` 替换旧 exe（**保留 `data/`**）
+4. 启动 v1.1 — 自动完成迁移
+
+可选：便携包中双击 **`迁移数据.bat`**，在不打开主界面的情况下先迁移（与启动时逻辑相同）。
+
+### 升级前
+
+1. **完全退出** workOrder（确认任务管理器中无 `workOrder.exe` 进程）
+2. **备份数据**（推荐）：复制 `workorder.db` 到安全位置
+
+数据文件常见位置：
+
+| 使用方式 | 默认路径 |
 |----------|----------|
-| 渚挎惡鐗?| `portable/data/workorder.db` |
-| 瀹夎鐗?| `{瀹夎鐩綍}/data/workorder.db` |
-| 搴旂敤鍐呰缃繃鏁版嵁鐩綍 | 璁剧疆椤垫樉绀虹殑璺緞 |
-| 鐜鍙橀噺 | `WORKORDER_DATA_DIR` 鎸囧悜鐨勭洰褰?|
+| 便携版 | `portable/data/workorder.db` |
+| 安装版 | `{安装目录}/data/workorder.db` |
+| 应用内设置过数据目录 | 设置页显示的路径 |
+| 环境变量 | `WORKORDER_DATA_DIR` 指向的目录 |
 
-### 瀹夎鐗堝崌绾э紙setup.exe / msi锛?
-閫傜敤浜庡綋鍒濋€氳繃 `installer` 鐩綍涓殑瀹夎绋嬪簭瀹夎鐨勭敤鎴枫€?
-1. 浠?`workOrder-release` 鍒嗘敮鎴?Release 椤甸潰涓嬭浇鏂扮増 `installer/`
-2. 杩愯鏂扮増 **`workOrder_x.x.x_x64-setup.exe`**锛堟帹鑽愶級鎴?MSI
-3. 瀹夎鍒?*鍘熷畨瑁呰矾寰?*锛堝畨瑁呯▼搴忎細璇嗗埆鏃х増骞惰鐩栧崌绾э級
-4. 浠庡紑濮嬭彍鍗曟垨妗岄潰蹇嵎鏂瑰紡鍚姩
+### 安装版升级（setup.exe / msi）
 
-鍗囩骇鍚庝互涓嬪唴瀹逛細淇濈暀锛?
-| 鍐呭 | 鏄惁淇濈暀 |
+适用于当初通过 `installer` 目录中的安装程序安装的用户。
+
+1. 从 `workOrder-release` 分支或 Release 页面下载新版 `installer/`
+2. 运行新版 **`workOrder_x.x.x_x64-setup.exe`**（推荐）或 MSI
+3. 安装到**原安装路径**（安装程序会识别旧版并覆盖升级）
+4. 从开始菜单或桌面快捷方式启动
+
+升级后以下内容会保留：
+
+| 内容 | 是否保留 |
 |------|----------|
-| `data/workorder.db`锛堜唬鍔炰笌澶勭疆杩囩▼锛?| 淇濈暀 |
-| `data/status_config.json`锛坴1.1 鏂板锛岄娆″惎鍔ㄨ嚜鍔ㄧ敓鎴愶級 | 淇濈暀鎴栨柊寤?|
-| `data/attachments/`锛堝浘鐗囬檮浠讹級 | 淇濈暀 |
-| `settings.json`锛堣嫢瀛樺湪锛岃褰曡嚜瀹氫箟鏁版嵁鐩綍锛?| 淇濈暀 |
-| 绋嬪簭 exe | 鏇挎崲涓烘柊鐗堟湰 |
+| `data/workorder.db`（代办与处置过程） | 保留 |
+| `data/status_config.json`（v1.1 新增，首次启动自动生成） | 保留或新建 |
+| `data/attachments/`（图片附件） | 保留 |
+| `settings.json`（若存在，记录自定义数据目录） | 保留 |
+| 程序 exe | 替换为新版本 |
 
-### 渚挎惡鐗堝崌绾?
-閫傜敤浜庤В鍘?`portable` 鏂囦欢澶圭洿鎺ヨ繍琛岀殑鐢ㄦ埛銆?
-1. 閫€鍑虹▼搴?2. 鐢ㄦ柊鐗?**`workOrder.exe`** 瑕嗙洊鏃ф枃浠?3. **淇濈暀**鍚岀洰褰曚笅鐨?`data/` 鏂囦欢澶瑰拰 `settings.json`锛堝鏈夛級
-4. 鍙屽嚮 `workOrder.exe` 鎴?`鍚姩 workOrder.bat` 鍚姩
+### 便携版升级
+
+适用于解压 `portable` 文件夹直接运行的用户。
+
+1. 退出程序
+2. 用新版 **`workOrder.exe`** 覆盖旧文件
+3. **保留**同目录下的 `data/` 文件夹和 `settings.json`（如有）
+4. 双击 `workOrder.exe` 或 `启动 workOrder.bat` 启动
 
 ```
 portable/
-鈹溾攢鈹€ workOrder.exe          鈫?浠呮浛鎹㈡鏂囦欢
-鈹溾攢鈹€ workOrder-migrate.exe  鈫?v1.1 鏂板锛堝彲閫夛級
-鈹溾攢鈹€ 鍚姩 workOrder.bat
-鈹溾攢鈹€ 杩佺Щ鏁版嵁.bat           鈫?v1.1 鏂板锛堝彲閫夛級
-鈹溾攢鈹€ settings.json          鈫?淇濈暀锛堣嫢瀛樺湪锛?鈹斺攢鈹€ data/                  鈫?淇濈暀
-    鈹溾攢鈹€ workorder.db
-    鈹溾攢鈹€ attachments/       鈫?鑻ユ湁鍥剧墖闄勪欢
-    鈹斺攢鈹€ status_config.json 鈫?v1.1 棣栨鍚姩鍚庣敓鎴?```
+├── workOrder.exe          ← 仅替换此文件
+├── workOrder-migrate.exe  ← v1.1 新增（可选）
+├── 启动 workOrder.bat
+├── 迁移数据.bat           ← v1.1 新增（可选）
+├── settings.json          ← 保留（若存在）
+└── data/                  ← 保留
+    ├── workorder.db
+    ├── attachments/       ← 若有图片附件
+    └── status_config.json ← v1.1 首次启动后生成
+```
 
-### 浠庡畨瑁呯増鍒囨崲鍒颁究鎼虹増锛堝彲閫夛級
+### 从安装版切换到便携版（可选）
 
-1. 鍦ㄦ棫鐗堜腑鎵撳紑銆岃缃€嶏紝纭褰撳墠鏁版嵁鐩綍
-2. 灏?`data/` 鏂囦欢澶癸紙鍚?`workorder.db`锛夊鍒跺埌鏂拌В鍘嬬殑 `portable/data/`
-3. 鑻ュ畨瑁呯洰褰曟梺鏈?`settings.json`锛屼竴骞跺鍒跺埌 `portable/` 鐩綍
-4. 鐢ㄤ究鎼虹増鍚姩骞舵牳瀵规暟鎹槸鍚﹀畬鏁?
-### 鍗囩骇鍚庨獙璇?
-- 鎵撳紑鑻ュ共鏃т唬鍔烇紝纭鍒楄〃涓庤鎯呮甯?- 妫€鏌ャ€屽缃繃绋嬨€嶆槸鍚﹀畬鏁达紙鏍囬銆佺姸鎬併€佸睍寮€鍚庣殑璇︾粏鍐呭锛?- 鑻ュ紓甯革紝鍏抽棴绋嬪簭鍚庣敤澶囦唤鐨?`workorder.db` 杩樺師
+1. 在旧版中打开「设置」，确认当前数据目录
+2. 将 `data/` 文件夹（含 `workorder.db`）复制到新解压的 `portable/data/`
+3. 若安装目录旁有 `settings.json`，一并复制到 `portable/` 目录
+4. 用便携版启动并核对数据是否完整
 
-### 甯歌闂
+### 升级后验证
 
-**Q锛氬崌绾т細涓㈠け鏁版嵁鍚楋紵**  
-A锛氭甯歌鐩栧畨瑁呬笉浼氥€傚彧瑕?`data/workorder.db` 鏈鍒犻櫎锛屾暟鎹細淇濈暀锛涢娆″惎鍔ㄤ細鑷姩鎵ц鏁版嵁搴撹縼绉汇€?
-**Q锛氶渶瑕佸嵏杞芥棫鐗堝啀瑁呮柊鐗堝悧锛?*  
-A锛氫笉闇€瑕併€傜洿鎺ヨ繍琛屾柊鐗堝畨瑁呯▼搴忚鐩栧嵆鍙€?
-**Q锛氬彲浠ュ洖閫€鍒版棫鐗堟湰鍚楋紵**  
-A锛氬彲浠ャ€備繚鐣欏崌绾у墠鐨?`workorder.db` 澶囦唤锛涜嫢鏂扮増鏈夐棶棰橈紝瑁呭洖鏃х増 exe 鍚庨€氬父浠嶅彲鎵撳紑鏁版嵁搴撱€?
-**Q锛氬畨瑁呭埌 Program Files 鍚庤缃〉鏀逛笉浜嗘暟鎹洰褰曪紵**  
-A锛氳鐩綍鍙兘鏃犲啓鍏ユ潈闄愩€傚崌绾у墠璇峰湪鏃х増銆岃缃€嶄腑纭瀹為檯鏁版嵁璺緞锛屾垨鏀圭敤渚挎惡鐗堝苟灏?`data/` 鏀惧湪鏈夊啓鏉冮檺鐨勪綅缃€?
+- 打开若干旧代办，确认列表与详情正常
+- 检查「处置过程」是否完整（标题、状态、展开后的详细内容）
+- 若异常，关闭程序后用备份的 `workorder.db` 还原
+
+### 常见问题
+
+**Q：升级会丢失数据吗？**  
+A：正常覆盖安装不会。只要 `data/workorder.db` 未被删除，数据会保留；首次启动会自动执行数据库迁移。
+
+**Q：需要卸载旧版再装新版吗？**  
+A：不需要。直接运行新版安装程序覆盖即可。
+
+**Q：可以回退到旧版本吗？**  
+A：可以。保留升级前的 `workorder.db` 备份；若新版有问题，装回旧版 exe 后通常仍可打开数据库。
+
+**Q：安装到 Program Files 后设置页改不了数据目录？**  
+A：该目录可能无写入权限。升级前请在旧版「设置」中确认实际数据路径，或改用便携版并将 `data/` 放在有写权限的位置。
+
 ---
 
-## 浠庢簮鐮佹墦鍖咃紙寮€鍙戣€咃級
+## 从源码打包（开发者）
 
-### 鐜瑕佹眰
+### 环境要求
 
 - [Node.js](https://nodejs.org/) 18+
-- [Rust](https://rustup.rs/)锛坄rustup` 瀹夎鍚庨噸鍚粓绔級
-- Windows锛歔Visual Studio Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/)锛堝嬀閫夈€屼娇鐢?C++ 鐨勬闈㈠紑鍙戙€嶏級
+- [Rust](https://rustup.rs/)（`rustup` 安装后重启终端）
+- Windows：[Visual Studio Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/)（勾选「使用 C++ 的桌面开发」）
 
-### 瀹夎渚濊禆
+### 安装依赖
 
 ```bash
 npm install
 ```
 
-### 寮€鍙戞ā寮?
+### 开发模式
+
 ```bash
 npm run tauri dev
 ```
 
-寮€鍙戞椂鏁版嵁鏂囦欢浣嶄簬椤圭洰鏍圭洰褰?`data/workorder.db`銆?
-淇敼 Rust Command 鎴?Model 鍚庯紝杩愯 `npm run bindings` 閲嶆柊鐢熸垚 `src/bindings.ts`锛坉ebug 妯″紡鍚姩鏃朵篃浼氳嚜鍔ㄥ鍑猴級銆傛洿澶氬懡浠よ [寮€鍙戣€呭父鐢ㄥ懡浠(docs/dev-commands.md)銆?
-### 鎵撳寘涓哄彲鍒嗗彂鐗堟湰
+开发时数据文件位于项目根目录 `data/workorder.db`。
 
-浠婚€夊叾涓€锛?
+修改 Rust Command 或 Model 后，运行 `npm run bindings` 重新生成 `src/bindings.ts`（debug 模式启动时也会自动导出）。更多命令见 [开发者常用命令](docs/dev-commands.md)。
+
+### 打包为可分发版本
+
+任选其一：
+
 ```bash
-# 鏂瑰紡涓€锛歯pm 鑴氭湰
+# 方式一：npm 脚本
 npm run package:win
 
-# 鏂瑰紡浜岋細鍙屽嚮椤圭洰鏍圭洰褰曠殑 鎵撳寘.bat
+# 方式二：双击项目根目录的 打包.bat
 ```
 
-鎵撳寘瀹屾垚鍚庯紝浜х墿浣嶄簬 `release/`锛?
+打包完成后，产物位于 `release/`：
+
 ```
 release/
-鈹溾攢鈹€ portable/              # 渚挎惡鐗堬紝鍙洿鎺?zip 鍒嗗彂缁欎粬浜?鈹?  鈹溾攢鈹€ workOrder.exe
-鈹?  鈹溾攢鈹€ 鍚姩 workOrder.bat
-鈹?  鈹斺攢鈹€ data/
-鈹斺攢鈹€ installer/             # 瀹夎鍖?    鈹溾攢鈹€ workOrder_1.1.0_x64-setup.exe
-    鈹斺攢鈹€ workOrder_1.1.0_x64_en-US.msi
+├── portable/              # 便携版，可直接 zip 分发给他人
+│   ├── workOrder.exe
+│   ├── 启动 workOrder.bat
+│   └── data/
+└── installer/             # 安装包
+    ├── workOrder_1.1.1_x64-setup.exe
+    └── workOrder_1.1.1_x64_en-US.msi
 ```
 
-灏?**`release/portable`** 鏂囦欢澶瑰帇缂╀负 zip 鍗冲彲鍒嗕韩缁欎粬浜轰竴閿繍琛屻€?
-### 鏇存柊 `workOrder-release` 鍙戝竷鍒嗘敮
+将 **`release/portable`** 文件夹压缩为 zip 即可分享给他人一键运行。
 
-`workOrder-release` 鍒嗘敮**浠呭寘鍚彲杩愯浜х墿**锛堟棤婧愮爜锛夛紝渚涗粬浜虹洿鎺ュ厠闅嗕娇鐢ㄣ€傛湰鍦版墦鍖呭畬鎴愬悗锛屽彲鎵嬪姩鏇存柊璇ュ垎鏀細
+### 更新 `workOrder-release` 发布分支
+
+`workOrder-release` 分支**仅包含可运行产物**（无源码），供他人直接克隆使用。本地打包完成后，可手动更新该分支：
 
 ```bash
 npm run package:win
 git checkout workOrder-release
-# 鐢?release/portable 涓?release/installer 瑕嗙洊鍒嗘敮鏍圭洰褰曞搴旀枃浠跺す
+# 用 release/portable 与 release/installer 覆盖分支根目录对应文件夹
 git add portable installer README.md
-git commit -m "鍙戝竷 workOrder x.x.x"
+git commit -m "发布 workOrder x.x.x"
 git checkout main
 ```
 
-### 鏁版嵁鐩綍
+### 数据目录
 
-| 鍦烘櫙 | 鏁版嵁璺緞 |
+| 场景 | 数据路径 |
 |------|----------|
-| 渚挎惡鐗堣繍琛?| `portable/data/workorder.db` |
-| 瀹夎鐗堣繍琛?| `{瀹夎鐩綍}/data/workorder.db` |
-| 搴旂敤鍐呰缃?| 璁剧疆椤典慨鏀瑰悗鍐欏叆 exe 鏃?`settings.json` |
-| 寮€鍙戞ā寮?| 椤圭洰鏍?`data/workorder.db` |
-| 鑷畾涔夎矾寰?| 璁剧疆鐜鍙橀噺 `WORKORDER_DATA_DIR` |
+| 便携版运行 | `portable/data/workorder.db` |
+| 安装版运行 | `{安装目录}/data/workorder.db` |
+| 应用内设置 | 设置页修改后写入 exe 旁 `settings.json` |
+| 开发模式 | 项目根 `data/workorder.db` |
+| 自定义路径 | 设置环境变量 `WORKORDER_DATA_DIR` |
 
 ---
 
-## 鏇村鏂囨。
+## 更多文档
 
-- [寮€鍙戣€呭父鐢ㄥ懡浠(docs/dev-commands.md)
-- [鍚庣鏋舵瀯](docs/backend.md)
+- [开发者常用命令](docs/dev-commands.md)
+- [后端架构](docs/backend.md)
 - [Tauri Command API](docs/api/commands.md)
-- [闇€姹傛枃妗(plan/闇€姹傛枃妗?md)
-- [鎶€鏈€夊瀷](plan/鎶€鏈€夊瀷.md)
-- [瀹炵幇璁″垝](plan/瀹炵幇璁″垝.md)
+- [需求文档](plan/需求文档.md)
+- [技术选型](plan/技术选型.md)
+- [实现计划](plan/实现计划.md)
