@@ -106,6 +106,7 @@ export type ProgressLog = {
 	title: string,
 	content: string | null,
 	status: string,
+	extraFields: { [key in string]: string } | null,
 	createdAt: string,
 };
 
@@ -114,6 +115,7 @@ export type ProgressLogInput = {
 	title: string,
 	content: string | null,
 	status: string,
+	extraFields: { [key in string]: string } | null,
 };
 
 export type SettingsInfo = {

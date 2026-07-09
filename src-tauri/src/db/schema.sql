@@ -18,6 +18,7 @@ CREATE TABLE IF NOT EXISTS progress_log (
     title VARCHAR(255) NOT NULL,
     content TEXT,
     status VARCHAR(50) NOT NULL DEFAULT 'NOT_STARTED',
+    extra_fields TEXT,
     created_at TIMESTAMP NOT NULL,
     FOREIGN KEY (work_order_id) REFERENCES work_order(id) ON DELETE CASCADE
 );

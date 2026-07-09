@@ -154,6 +154,20 @@ body {
   color: #999;
 }
 
+.progress-field {
+  margin: 0 0 6px;
+  font-size: 13px;
+}
+
+.progress-field-label {
+  color: #666;
+}
+
+.progress-field-value {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 .attachment-gallery {
   margin-top: 8px;
 }

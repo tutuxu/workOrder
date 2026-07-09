@@ -67,6 +67,7 @@ const expandedLogIds = ref<Array<string | number>>([]);
 const progressTitle = ref("");
 const progressContent = ref("");
 const progressStatus = ref("IN_PROGRESS");
+const progressExtraFieldValues = ref<Record<string, string>>({});
 const editingLogId = ref<number | null>(null);
 const showProgressForm = ref(false);
 
@@ -78,6 +79,7 @@ const workOrderId = ref<number | undefined>(props.workOrder?.id ?? undefined);
 const isNew = computed(() => workOrderId.value == null);
 const modalTitle = computed(() => (isNew.value ? "新建代办" : "编辑代办"));
 const activeFields = computed(() => fieldsForStatus(status.value));
+const progressActiveFields = computed(() => fieldsForStatus(progressStatus.value));
 const saveButtonLabel = computed(() => {
   const binding = getEffectiveBinding("detail.save");
   return binding ? `保存 (${binding})` : "保存";
@@ -128,6 +130,66 @@ function setExtraFieldDate(key: string, value: number | null) {
   extraFieldValues.value = next;
 }
 
+function getProgressExtraFieldText(key: string): string {
+  return progressExtraFieldValues.value[key] ?? "";
+}
+
+function setProgressExtraFieldText(key: string, value: string) {
+  progressExtraFieldValues.value = { ...progressExtraFieldValues.value, [key]: value };
+}
+
+function getProgressExtraFieldDate(key: string): number | null {
+  const raw = progressExtraFieldValues.value[key];
+  if (!raw) return null;
+  const parsed = dayjs(raw);
+  return parsed.isValid() ? parsed.valueOf() : null;
+}
+
+function setProgressExtraFieldDate(key: string, value: number | null) {
+  const next = { ...progressExtraFieldValues.value };
+  if (value == null) {
+    delete next[key];
+  } else {
+    next[key] = dayjs(value).format("YYYY-MM-DDTHH:mm:ss");
+  }
+  progressExtraFieldValues.value = next;
+}
+
+function onProgressExtraFieldKeydown(e: KeyboardEvent, key: string) {
+  const fieldRef: Ref<string> = {
+    get value() {
+      return progressExtraFieldValues.value[key] ?? "";
+    },
+    set value(v: string) {
+      setProgressExtraFieldText(key, v);
+    },
+  } as Ref<string>;
+  insertTextIndent(fieldRef, e);
+}
+
+function buildProgressExtraFieldsPayload(): Record<string, string> | null {
+  const payload: Record<string, string> = {};
+  for (const field of progressActiveFields.value) {
+    const value = progressExtraFieldValues.value[field.key]?.trim();
+    if (value) {
+      payload[field.key] = value;
+    }
+  }
+  return Object.keys(payload).length > 0 ? payload : null;
+}
+
+function validateProgressExtraFieldsClient(): boolean {
+  for (const field of progressActiveFields.value) {
+    if (!field.required) continue;
+    const value = progressExtraFieldValues.value[field.key]?.trim();
+    if (!value) {
+      message.warning(`请填写${field.label}`);
+      return false;
+    }
+  }
+  return true;
+}
+
 function onExtraFieldKeydown(e: KeyboardEvent, key: string) {
   const fieldRef: Ref<string> = {
     get value() {
@@ -168,6 +230,7 @@ function buildProgressInput(): ProgressLogInput {
     title: progressTitle.value.trim(),
     content: progressContent.value.trim() || "",
     status: progressStatus.value,
+    extraFields: buildProgressExtraFieldsPayload(),
   };
 }
 
@@ -182,6 +245,7 @@ function clearProgressForm() {
   progressTitle.value = "";
   progressContent.value = "";
   progressStatus.value = defaultProgressStatus();
+  progressExtraFieldValues.value = {};
   progressGalleryRef.value?.clearStaged();
   showProgressForm.value = false;
 }
@@ -191,6 +255,7 @@ function openProgressForm() {
   progressTitle.value = "";
   progressContent.value = "";
   progressStatus.value = defaultProgressStatus();
+  progressExtraFieldValues.value = {};
   progressGalleryRef.value?.clearStaged();
   showProgressForm.value = true;
 }
@@ -348,6 +413,7 @@ async function saveProgress() {
     message.warning("请填写过程标题");
     return;
   }
+  if (!validateProgressExtraFieldsClient()) return;
   try {
     const input = buildProgressInput();
     if (editingLogId.value != null) {
@@ -373,6 +439,7 @@ async function saveProgress() {
 
 async function flushPendingProgress() {
   if (!progressTitle.value.trim() || workOrderId.value == null) return;
+  if (!validateProgressExtraFieldsClient()) return;
   try {
     const input = buildProgressInput();
     if (editingLogId.value != null) {
@@ -397,6 +464,7 @@ function startEdit(log: ProgressLog) {
   progressTitle.value = log.title;
   progressContent.value = log.content ?? "";
   progressStatus.value = log.status;
+  progressExtraFieldValues.value = { ...(log.extraFields ?? {}) };
   showProgressForm.value = true;
   if (log.id != null && !expandedLogIds.value.includes(log.id)) {
     expandedLogIds.value = [...expandedLogIds.value, log.id];
@@ -488,6 +556,14 @@ onUnmounted(() => {
 
 function fieldInputType(field: StatusField): "text" | "textarea" {
   return field.type === "textarea" ? "textarea" : "text";
+}
+
+function formatExtraFieldValue(field: StatusField, value: string | undefined): string {
+  if (!value) return "";
+  if (field.type === "date") {
+    return formatServerDateTime(value);
+  }
+  return value;
 }
 </script>
 
@@ -592,6 +668,15 @@ function fieldInputType(field: StatusField): "text" | "textarea" {
           <div class="progress-body">
             <p v-if="log.content" class="progress-content">{{ log.content }}</p>
             <p v-else class="progress-content progress-empty">暂无详细内容</p>
+            <template v-for="field in fieldsForStatus(log.status)" :key="field.key">
+              <p
+                v-if="log.extraFields?.[field.key]"
+                class="progress-field"
+              >
+                <span class="progress-field-label">{{ field.label }}：</span>
+                <span class="progress-field-value">{{ formatExtraFieldValue(field, log.extraFields[field.key]) }}</span>
+              </p>
+            </template>
             <AttachmentGallery
               v-if="log.id != null"
               owner-type="progress_log"
@@ -647,6 +732,26 @@ function fieldInputType(field: StatusField): "text" | "textarea" {
             </n-space>
           </n-radio-group>
         </n-form-item>
+        <template v-for="field in progressActiveFields" :key="field.key">
+          <n-form-item :label="field.label" :required="field.required">
+            <n-date-picker
+              v-if="field.type === 'date'"
+              :value="getProgressExtraFieldDate(field.key)"
+              type="datetime"
+              clearable
+              style="width: 100%"
+              @update:value="(v: number | null) => setProgressExtraFieldDate(field.key, v)"
+            />
+            <n-input
+              v-else
+              :value="getProgressExtraFieldText(field.key)"
+              :type="fieldInputType(field)"
+              :rows="field.type === 'textarea' ? 3 : undefined"
+              @update:value="(v: string) => setProgressExtraFieldText(field.key, v)"
+              @keydown="(e: KeyboardEvent) => onProgressExtraFieldKeydown(e, field.key)"
+            />
+          </n-form-item>
+        </template>
         <n-form-item label="详细内容">
           <n-input
             v-model:value="progressContent"

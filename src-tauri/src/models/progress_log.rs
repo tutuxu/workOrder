@@ -1,5 +1,7 @@
 //! 进度日志模型。
 
+use std::collections::HashMap;
+
 use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
 use specta::Type;
@@ -13,6 +15,7 @@ pub struct ProgressLog {
     pub title: String,
     pub content: Option<String>,
     pub status: String,
+    pub extra_fields: Option<HashMap<String, String>>,
     pub created_at: NaiveDateTime,
 }
 
@@ -23,4 +26,5 @@ pub struct ProgressLogInput {
     pub title: String,
     pub content: Option<String>,
     pub status: String,
+    pub extra_fields: Option<HashMap<String, String>>,
 }

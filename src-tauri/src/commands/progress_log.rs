@@ -7,6 +7,7 @@ use crate::models::attachment::OwnerType;
 use crate::models::progress_log::{ProgressLog, ProgressLogInput};
 use crate::services::attachment_service;
 use crate::services::progress_log_service;
+use crate::services::status_config_service;
 use crate::AppState;
 
 fn map_err(err: ServiceError) -> String {
@@ -33,7 +34,8 @@ pub fn add_progress_log(
     input: ProgressLogInput,
 ) -> Result<ProgressLog, String> {
     let conn = state.db.lock().map_err(|_| "database lock poisoned".to_string())?;
-    progress_log_service::add_log(&conn, work_order_id, &input).map_err(map_err)
+    let config = status_config_service::load_config(&state.data_dir).map_err(map_err)?;
+    progress_log_service::add_log(&conn, work_order_id, &input, &config).map_err(map_err)
 }
 
 /// 更新进度日志；log 必须属于指定工单。
@@ -46,7 +48,8 @@ pub fn update_progress_log(
     input: ProgressLogInput,
 ) -> Result<ProgressLog, String> {
     let conn = state.db.lock().map_err(|_| "database lock poisoned".to_string())?;
-    progress_log_service::update_log(&conn, log_id, work_order_id, &input).map_err(map_err)
+    let config = status_config_service::load_config(&state.data_dir).map_err(map_err)?;
+    progress_log_service::update_log(&conn, log_id, work_order_id, &input, &config).map_err(map_err)
 }
 
 /// 删除进度日志；log 必须属于指定工单。

@@ -512,7 +512,9 @@ mod tests {
                 title: "step".into(),
                 content: None,
                 status: "IN_PROGRESS".into(),
+                extra_fields: None,
             },
+            &config(),
         )
         .unwrap();
         let log_id = log.id.unwrap();

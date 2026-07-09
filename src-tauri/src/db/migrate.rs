@@ -42,6 +42,14 @@ pub fn migrate_progress_log(conn: &Connection) -> Result<(), ServiceError> {
     Ok(())
 }
 
+/// 为 progress_log 表添加 extra_fields 列。
+pub fn migrate_progress_extra_fields(conn: &Connection) -> Result<(), ServiceError> {
+    if !column_exists(conn, "progress_log", "extra_fields")? {
+        conn.execute("ALTER TABLE progress_log ADD COLUMN extra_fields TEXT", [])?;
+    }
+    Ok(())
+}
+
 /// 将 legacy waiting 列迁移至 extra_fields JSON。
 pub fn migrate_extra_fields(conn: &Connection) -> Result<(), ServiceError> {
     if !column_exists(conn, "work_order", "extra_fields")? {
