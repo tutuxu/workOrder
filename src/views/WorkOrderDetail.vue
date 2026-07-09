@@ -6,6 +6,7 @@ import { formatServerDateTime } from "../utils/datetime";
 import * as workOrderApi from "../api/workOrders";
 import * as progressLogApi from "../api/progressLogs";
 import AttachmentGallery from "../components/AttachmentGallery.vue";
+import ProgressLogForm from "../components/ProgressLogForm.vue";
 import { useStatusConfig } from "../composables/useStatusConfig";
 import { useTagConfig } from "../composables/useTagConfig";
 import {
@@ -72,7 +73,7 @@ const editingLogId = ref<number | null>(null);
 const showProgressForm = ref(false);
 
 const workOrderGalleryRef = ref<InstanceType<typeof AttachmentGallery> | null>(null);
-const progressGalleryRef = ref<InstanceType<typeof AttachmentGallery> | null>(null);
+const progressGalleryRef = ref<InstanceType<typeof ProgressLogForm> | null>(null);
 const modalContainerRef = ref<HTMLElement | null>(null);
 
 const workOrderId = ref<number | undefined>(props.workOrder?.id ?? undefined);
@@ -128,43 +129,6 @@ function setExtraFieldDate(key: string, value: number | null) {
     next[key] = dayjs(value).format("YYYY-MM-DDTHH:mm:ss");
   }
   extraFieldValues.value = next;
-}
-
-function getProgressExtraFieldText(key: string): string {
-  return progressExtraFieldValues.value[key] ?? "";
-}
-
-function setProgressExtraFieldText(key: string, value: string) {
-  progressExtraFieldValues.value = { ...progressExtraFieldValues.value, [key]: value };
-}
-
-function getProgressExtraFieldDate(key: string): number | null {
-  const raw = progressExtraFieldValues.value[key];
-  if (!raw) return null;
-  const parsed = dayjs(raw);
-  return parsed.isValid() ? parsed.valueOf() : null;
-}
-
-function setProgressExtraFieldDate(key: string, value: number | null) {
-  const next = { ...progressExtraFieldValues.value };
-  if (value == null) {
-    delete next[key];
-  } else {
-    next[key] = dayjs(value).format("YYYY-MM-DDTHH:mm:ss");
-  }
-  progressExtraFieldValues.value = next;
-}
-
-function onProgressExtraFieldKeydown(e: KeyboardEvent, key: string) {
-  const fieldRef: Ref<string> = {
-    get value() {
-      return progressExtraFieldValues.value[key] ?? "";
-    },
-    set value(v: string) {
-      setProgressExtraFieldText(key, v);
-    },
-  } as Ref<string>;
-  insertTextIndent(fieldRef, e);
 }
 
 function buildProgressExtraFieldsPayload(): Record<string, string> | null {
@@ -527,14 +491,6 @@ function onDescriptionKeydown(e: KeyboardEvent) {
   onTextKeydown(e, description);
 }
 
-function onProgressTitleKeydown(e: KeyboardEvent) {
-  onTextKeydown(e, progressTitle);
-}
-
-function onProgressContentKeydown(e: KeyboardEvent) {
-  onTextKeydown(e, progressContent);
-}
-
 function onFormKeydown(e: KeyboardEvent) {
   const binding = getEffectiveBinding("detail.focusNext");
   const pressed = eventToBinding(e);
@@ -666,32 +622,46 @@ function formatExtraFieldValue(field: StatusField, value: string | undefined): s
             </div>
           </template>
           <div class="progress-body">
-            <p v-if="log.content" class="progress-content">{{ log.content }}</p>
-            <p v-else class="progress-content progress-empty">暂无详细内容</p>
-            <template v-for="field in fieldsForStatus(log.status)" :key="field.key">
-              <p
-                v-if="log.extraFields?.[field.key]"
-                class="progress-field"
-              >
-                <span class="progress-field-label">{{ field.label }}：</span>
-                <span class="progress-field-value">{{ formatExtraFieldValue(field, log.extraFields[field.key]) }}</span>
-              </p>
-            </template>
-            <AttachmentGallery
-              v-if="log.id != null"
-              owner-type="progress_log"
-              :owner-id="log.id"
-              readonly
+            <ProgressLogForm
+              v-if="editingLogId === log.id"
+              ref="progressGalleryRef"
+              inline
+              v-model:title="progressTitle"
+              v-model:status="progressStatus"
+              v-model:content="progressContent"
+              v-model:extra-field-values="progressExtraFieldValues"
+              :editing-log-id="log.id"
+              @save="saveProgress"
+              @cancel="clearProgressForm"
             />
-            <n-space>
-              <n-button text type="primary" @click="startEdit(log)">编辑</n-button>
-              <n-popconfirm @positive-click="deleteProgress(log)">
-                <template #trigger>
-                  <n-button text type="error">删除</n-button>
-                </template>
-                确定删除该过程记录吗？
-              </n-popconfirm>
-            </n-space>
+            <template v-else>
+              <p v-if="log.content" class="progress-content">{{ log.content }}</p>
+              <p v-else class="progress-content progress-empty">暂无详细内容</p>
+              <template v-for="field in fieldsForStatus(log.status)" :key="field.key">
+                <p
+                  v-if="log.extraFields?.[field.key]"
+                  class="progress-field"
+                >
+                  <span class="progress-field-label">{{ field.label }}：</span>
+                  <span class="progress-field-value">{{ formatExtraFieldValue(field, log.extraFields[field.key]) }}</span>
+                </p>
+              </template>
+              <AttachmentGallery
+                v-if="log.id != null"
+                owner-type="progress_log"
+                :owner-id="log.id"
+                readonly
+              />
+              <n-space>
+                <n-button text type="primary" @click="startEdit(log)">编辑</n-button>
+                <n-popconfirm @positive-click="deleteProgress(log)">
+                  <template #trigger>
+                    <n-button text type="error">删除</n-button>
+                  </template>
+                  确定删除该过程记录吗？
+                </n-popconfirm>
+              </n-space>
+            </template>
           </div>
         </n-collapse-item>
       </n-collapse>
@@ -706,76 +676,16 @@ function formatExtraFieldValue(field: StatusField, value: string | undefined): s
       </n-button>
     </template>
 
-    <n-card
-      v-if="!isNew && showProgressForm"
-      size="small"
-      :title="editingLogId != null ? '编辑过程' : '添加过程'"
-      style="margin-top: 12px"
-    >
-      <n-form label-placement="top">
-        <n-form-item label="标题" required>
-          <n-input
-            v-model:value="progressTitle"
-            placeholder="过程标题"
-            @keydown="onProgressTitleKeydown"
-          />
-        </n-form-item>
-        <n-form-item label="状态">
-          <n-radio-group v-model:value="progressStatus" data-field="progressStatus">
-            <n-space>
-              <n-radio
-                v-for="opt in statusOptions"
-                :key="opt.value"
-                :value="opt.value"
-                :label="opt.label"
-              />
-            </n-space>
-          </n-radio-group>
-        </n-form-item>
-        <template v-for="field in progressActiveFields" :key="field.key">
-          <n-form-item :label="field.label" :required="field.required">
-            <n-date-picker
-              v-if="field.type === 'date'"
-              :value="getProgressExtraFieldDate(field.key)"
-              type="datetime"
-              clearable
-              style="width: 100%"
-              @update:value="(v: number | null) => setProgressExtraFieldDate(field.key, v)"
-            />
-            <n-input
-              v-else
-              :value="getProgressExtraFieldText(field.key)"
-              :type="fieldInputType(field)"
-              :rows="field.type === 'textarea' ? 3 : undefined"
-              @update:value="(v: string) => setProgressExtraFieldText(field.key, v)"
-              @keydown="(e: KeyboardEvent) => onProgressExtraFieldKeydown(e, field.key)"
-            />
-          </n-form-item>
-        </template>
-        <n-form-item label="详细内容">
-          <n-input
-            v-model:value="progressContent"
-            type="textarea"
-            :rows="3"
-            placeholder="可选，展开后可见"
-            @keydown="onProgressContentKeydown"
-          />
-        </n-form-item>
-        <n-form-item label="图片">
-          <AttachmentGallery
-            ref="progressGalleryRef"
-            owner-type="progress_log"
-            :owner-id="editingLogId ?? undefined"
-          />
-        </n-form-item>
-      </n-form>
-      <n-space>
-        <n-button type="primary" :keyboard="false" @click="saveProgress">
-          {{ editingLogId != null ? "保存修改" : "保存过程" }}
-        </n-button>
-        <n-button @click="clearProgressForm">取消</n-button>
-      </n-space>
-    </n-card>
+    <ProgressLogForm
+      v-if="!isNew && showProgressForm && editingLogId == null"
+      ref="progressGalleryRef"
+      v-model:title="progressTitle"
+      v-model:status="progressStatus"
+      v-model:content="progressContent"
+      v-model:extra-field-values="progressExtraFieldValues"
+      @save="saveProgress"
+      @cancel="clearProgressForm"
+    />
     </div>
 
     <template #footer>

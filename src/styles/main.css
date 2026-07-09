@@ -144,6 +144,12 @@ body {
   padding: 4px 0 8px;
 }
 
+.progress-form-inline {
+  margin-top: 4px;
+  padding-top: 8px;
+  border-top: 1px solid var(--n-divider-color, #efeff5);
+}
+
 .progress-content {
   margin: 0 0 8px;
   white-space: pre-wrap;
