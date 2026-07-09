@@ -4,4 +4,5 @@ pub mod attachment;
 pub mod progress_log;
 pub mod settings;
 pub mod status_config;
+pub mod tag_config;
 pub mod work_order;

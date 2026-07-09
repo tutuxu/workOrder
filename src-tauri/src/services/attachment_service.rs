@@ -377,6 +377,7 @@ mod tests {
     use crate::db::connection::open_connection;
     use crate::models::progress_log::ProgressLogInput;
     use crate::models::status_config::StatusConfig;
+    use crate::models::tag_config::TagConfig;
     use crate::models::work_order::WorkOrderInput;
     use crate::services::progress_log_service;
     use crate::services::work_order_service;
@@ -384,6 +385,10 @@ mod tests {
 
     fn config() -> StatusConfig {
         StatusConfig::default_config()
+    }
+
+    fn tag_config() -> TagConfig {
+        TagConfig::default_config()
     }
 
     fn temp_db() -> (Connection, PathBuf) {
@@ -413,13 +418,14 @@ mod tests {
             status: "NOT_STARTED".into(),
             extra_fields: None,
             due_date: None,
+            tags: vec![],
         }
     }
 
     #[test]
     fn add_list_delete_attachment() {
         let (conn, dir) = temp_db();
-        let wo = work_order_service::create(&conn, wo_input("att test"), &config()).unwrap();
+        let wo = work_order_service::create(&conn, wo_input("att test"), &config(), &tag_config()).unwrap();
         let wo_id = wo.id.unwrap();
 
         add_from_bytes(
@@ -447,7 +453,7 @@ mod tests {
     #[test]
     fn rejects_oversized_file() {
         let (conn, dir) = temp_db();
-        let wo = work_order_service::create(&conn, wo_input("oversize"), &config()).unwrap();
+        let wo = work_order_service::create(&conn, wo_input("oversize"), &config(), &tag_config()).unwrap();
         let wo_id = wo.id.unwrap();
         let mut data = sample_png();
         data.resize(MAX_FILE_SIZE + 1, 0);
@@ -467,7 +473,7 @@ mod tests {
     #[test]
     fn rejects_non_image() {
         let (conn, dir) = temp_db();
-        let wo = work_order_service::create(&conn, wo_input("non-image"), &config()).unwrap();
+        let wo = work_order_service::create(&conn, wo_input("non-image"), &config(), &tag_config()).unwrap();
         let wo_id = wo.id.unwrap();
         let err = add_from_bytes(
             &conn,
@@ -485,7 +491,7 @@ mod tests {
     #[test]
     fn cascade_delete_work_order() {
         let (conn, dir) = temp_db();
-        let wo = work_order_service::create(&conn, wo_input("cascade"), &config()).unwrap();
+        let wo = work_order_service::create(&conn, wo_input("cascade"), &config(), &tag_config()).unwrap();
         let wo_id = wo.id.unwrap();
 
         add_from_bytes(

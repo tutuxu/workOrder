@@ -6,7 +6,7 @@ use rusqlite::Connection;
 
 use crate::db::connection::open_connection;
 use crate::error::ServiceError;
-use crate::services::status_config_service;
+use crate::services::{status_config_service, tag_config_service};
 
 /// 一次迁移执行的结果摘要。
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -16,19 +16,24 @@ pub struct MigrationSummary {
     pub extra_fields_rows: i64,
     /// 本次是否新创建了 status_config.json（v1.0 升级时为 true）
     pub status_config_created: bool,
+    /// 本次是否新创建了 tag_config.json
+    pub tag_config_created: bool,
 }
 
 /// 执行全部数据迁移：DB schema/列升级 + 默认状态配置补全。
 /// 与正常启动时 `open_connection` + `ensure_default_config` 行为一致，可重复执行（幂等）。
 pub fn run_data_migrations(data_dir: &Path) -> Result<MigrationSummary, ServiceError> {
-    let config_existed = data_dir.join(status_config_service::CONFIG_FILE_NAME).exists();
+    let status_config_existed = data_dir.join(status_config_service::CONFIG_FILE_NAME).exists();
+    let tag_config_existed = data_dir.join(tag_config_service::CONFIG_FILE_NAME).exists();
     let conn = open_connection(data_dir)?;
     let extra_fields_rows = count_extra_fields_rows(&conn)?;
     status_config_service::ensure_default_config(data_dir)?;
+    tag_config_service::ensure_default_config(data_dir)?;
     Ok(MigrationSummary {
         data_dir: data_dir.to_path_buf(),
         extra_fields_rows,
-        status_config_created: !config_existed,
+        status_config_created: !status_config_existed,
+        tag_config_created: !tag_config_existed,
     })
 }
 
@@ -46,11 +51,17 @@ impl MigrationSummary {
         format!(
             "数据目录: {}\n\
              含扩展字段的工单: {} 条\n\
-             状态配置: {}",
+             状态配置: {}\n\
+             标签配置: {}",
             self.data_dir.display(),
             self.extra_fields_rows,
             if self.status_config_created {
                 "已生成 status_config.json（从 v1.0 默认四状态迁移）"
+            } else {
+                "已存在，未覆盖"
+            },
+            if self.tag_config_created {
+                "已生成 tag_config.json（默认标签一、标签二）"
             } else {
                 "已存在，未覆盖"
             }

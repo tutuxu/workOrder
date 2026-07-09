@@ -68,6 +68,7 @@ pub fn open_connection(data_dir: &Path) -> Result<Connection, ServiceError> {
     migrate::migrate_progress_log(&conn)?;
     migrate::migrate_attachment(&conn)?;
     migrate::migrate_extra_fields(&conn)?;
+    migrate::migrate_work_order_tag(&conn)?;
     Ok(conn)
 }
 

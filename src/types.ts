@@ -2,6 +2,8 @@ import type {
   StatusConfig,
   StatusDefinition,
   StatusField,
+  TagConfig,
+  TagDefinition,
 } from "./bindings";
 
 export type {
@@ -11,6 +13,9 @@ export type {
   StatusDefinition,
   StatusField,
   StatusFieldType,
+  TagConfig,
+  TagDefinition,
+  TagMatchMode,
   WorkOrder,
   WorkOrderInput,
   ProgressLog,
@@ -42,4 +47,16 @@ export function defaultStatusId(config: StatusConfig | null): string {
   if (!config || config.statuses.length === 0) return "NOT_STARTED";
   const sorted = sortedStatuses(config);
   return sorted[0]?.id ?? "NOT_STARTED";
+}
+
+export function sortedTags(config: TagConfig): TagDefinition[] {
+  return [...config.tags].sort((a, b) => a.order - b.order);
+}
+
+export function tagLabelFromConfig(
+  config: TagConfig | null,
+  tagId: string,
+): string {
+  if (!config) return tagId;
+  return config.tags.find((t) => t.id === tagId)?.label ?? tagId;
 }

@@ -130,12 +130,17 @@ mod tests {
     use super::*;
     use crate::db::connection::open_connection;
     use crate::models::status_config::StatusConfig;
+    use crate::models::tag_config::TagConfig;
     use crate::models::work_order::WorkOrderInput;
     use crate::services::work_order_service::create;
     use std::time::{SystemTime, UNIX_EPOCH};
 
     fn config() -> StatusConfig {
         StatusConfig::default_config()
+    }
+
+    fn tag_config() -> TagConfig {
+        TagConfig::default_config()
     }
 
     fn temp_db() -> (Connection, std::path::PathBuf) {
@@ -167,8 +172,10 @@ mod tests {
                 status: "NOT_STARTED".into(),
                 extra_fields: None,
                 due_date: None,
+                tags: vec![],
             },
             &config(),
+            &tag_config(),
         )
         .unwrap();
         let log = add_log(
@@ -197,8 +204,10 @@ mod tests {
                 status: "NOT_STARTED".into(),
                 extra_fields: None,
                 due_date: None,
+                tags: vec![],
             },
             &config(),
+            &tag_config(),
         )
         .unwrap();
         let log = add_log(&conn, wo.id.unwrap(), &sample_input("Started investigation")).unwrap();

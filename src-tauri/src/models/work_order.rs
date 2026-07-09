@@ -17,6 +17,8 @@ pub struct WorkOrder {
     pub priority: i32,
     pub extra_fields: Option<HashMap<String, String>>,
     pub due_date: Option<NaiveDateTime>,
+    #[serde(default)]
+    pub tags: Vec<String>,
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
 }
@@ -30,4 +32,6 @@ pub struct WorkOrderInput {
     pub status: String,
     pub extra_fields: Option<HashMap<String, String>>,
     pub due_date: Option<NaiveDateTime>,
+    #[serde(default)]
+    pub tags: Vec<String>,
 }

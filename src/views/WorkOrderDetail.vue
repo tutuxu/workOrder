@@ -7,6 +7,7 @@ import * as workOrderApi from "../api/workOrders";
 import * as progressLogApi from "../api/progressLogs";
 import AttachmentGallery from "../components/AttachmentGallery.vue";
 import { useStatusConfig } from "../composables/useStatusConfig";
+import { useTagConfig } from "../composables/useTagConfig";
 import {
   getEffectiveBinding,
   registerShortcut,
@@ -49,6 +50,7 @@ const {
   defaultStatus,
   load: loadStatusConfig,
 } = useStatusConfig();
+const { tagOptions, load: loadTagConfig } = useTagConfig();
 
 const show = ref(true);
 const saving = ref(false);
@@ -57,6 +59,7 @@ const title = ref("");
 const description = ref("");
 const status = ref("NOT_STARTED");
 const dueDate = ref<number | null>(null);
+const tags = ref<string[]>([]);
 const extraFieldValues = ref<Record<string, string>>({});
 
 const logs = ref<ProgressLog[]>([]);
@@ -85,6 +88,7 @@ function bindForm(order: WorkOrder) {
   description.value = order.description ?? "";
   status.value = order.status ?? defaultStatus();
   dueDate.value = order.dueDate ? dayjs(order.dueDate).valueOf() : null;
+  tags.value = [...(order.tags ?? [])];
   extraFieldValues.value = { ...(order.extraFields ?? {}) };
   workOrderId.value = order.id ?? undefined;
 }
@@ -94,6 +98,7 @@ function resetForNew() {
   description.value = "";
   status.value = defaultStatus();
   dueDate.value = null;
+  tags.value = [];
   extraFieldValues.value = {};
   workOrderId.value = undefined;
 }
@@ -199,7 +204,7 @@ async function loadLogs() {
 }
 
 onMounted(async () => {
-  await loadStatusConfig();
+  await Promise.all([loadStatusConfig(), loadTagConfig()]);
   if (props.workOrder) {
     bindForm(props.workOrder);
     await loadLogs();
@@ -284,6 +289,7 @@ function buildInput(): WorkOrderInput {
     status: status.value,
     extraFields: buildExtraFieldsPayload(),
     dueDate: dueDate.value ? dayjs(dueDate.value).format("YYYY-MM-DDTHH:mm:ss") : null,
+    tags: tags.value,
   };
 }
 
@@ -526,6 +532,14 @@ function fieldInputType(field: StatusField): "text" | "textarea" {
             />
           </n-space>
         </n-radio-group>
+      </n-form-item>
+      <n-form-item label="标签">
+        <n-select
+          v-model:value="tags"
+          multiple
+          :options="tagOptions"
+          placeholder="选择标签"
+        />
       </n-form-item>
       <n-form-item label="计划完成时间">
         <n-date-picker v-model:value="dueDate" type="datetime" clearable style="width: 100%" />

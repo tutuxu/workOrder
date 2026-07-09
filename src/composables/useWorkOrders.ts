@@ -1,12 +1,14 @@
 import { ref } from "vue";
 import dayjs from "dayjs";
-import type { WorkOrder } from "../types";
+import type { TagMatchMode, WorkOrder } from "../types";
 import * as api from "../api/workOrders";
 
 export function useWorkOrders() {
   const items = ref<WorkOrder[]>([]);
   const loading = ref(false);
   const selectedStatuses = ref<string[]>([]);
+  const selectedTags = ref<string[]>([]);
+  const tagMatchMode = ref<TagMatchMode>("any");
   const searchQuery = ref("");
 
   async function refresh() {
@@ -14,6 +16,8 @@ export function useWorkOrders() {
     try {
       items.value = await api.listWorkOrders(
         selectedStatuses.value,
+        selectedTags.value,
+        tagMatchMode.value,
         searchQuery.value,
       );
     } catch (error) {
@@ -41,6 +45,8 @@ export function useWorkOrders() {
     items,
     loading,
     selectedStatuses,
+    selectedTags,
+    tagMatchMode,
     searchQuery,
     refresh,
     isOverdue,

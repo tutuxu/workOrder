@@ -6,8 +6,9 @@ import * as workOrderApi from "../api/workOrders";
 import { formatLocalDateTime, formatServerDateTime } from "../utils/datetime";
 import { useWorkOrders } from "../composables/useWorkOrders";
 import { useStatusConfig } from "../composables/useStatusConfig";
+import { useTagConfig } from "../composables/useTagConfig";
 import { registerShortcut, unregisterShortcut } from "../composables/useShortcuts";
-import { rowStyleForStatus } from "../utils/statusColors";
+import { rowStyleForStatus, tagStyleForTag } from "../utils/statusColors";
 
 const emit = defineEmits<{
   openDetail: [order: import("../types").WorkOrder | null];
@@ -17,11 +18,14 @@ const emit = defineEmits<{
 const message = useMessage();
 const dialog = useDialog();
 const { statusOptions, statusLabel, statusColor, load: loadStatusConfig } = useStatusConfig();
+const { tagOptions, tagLabel, tagColor, load: loadTagConfig } = useTagConfig();
 
 const {
   items,
   loading,
   selectedStatuses,
+  selectedTags,
+  tagMatchMode,
   searchQuery,
   refresh,
   isOverdue,
@@ -56,7 +60,7 @@ const emptyDescription = computed(() =>
 
 onMounted(async () => {
   try {
-    await loadStatusConfig();
+    await Promise.all([loadStatusConfig(), loadTagConfig()]);
     await refresh();
     localItems.value = [...items.value];
   } catch (error) {
@@ -108,6 +112,15 @@ async function syncLocalItems() {
 
 async function onFilterChange() {
   await syncLocalItems();
+}
+
+async function onTagFilterChange() {
+  await syncLocalItems();
+}
+
+function onMatchAllChange(checked: boolean) {
+  tagMatchMode.value = checked ? "all" : "any";
+  void onTagFilterChange();
 }
 
 function onSearchInput(value: string) {
@@ -175,7 +188,7 @@ async function deleteSelected() {
 }
 
 async function reload() {
-  await loadStatusConfig(true);
+  await Promise.all([loadStatusConfig(true), loadTagConfig(true)]);
   await refresh();
   localItems.value = [...items.value];
 }
@@ -186,29 +199,49 @@ defineExpose({ reload });
 <template>
   <div class="work-order-list">
     <div class="toolbar">
-      <n-button type="primary" @click="openNew">新建</n-button>
-      <n-popconfirm @positive-click="deleteSelected">
-        <template #trigger>
-          <n-button type="error" :disabled="selectedCount === 0">
-            删除选中{{ selectedCount > 0 ? ` (${selectedCount})` : "" }}
-          </n-button>
-        </template>
-        确定删除选中的 {{ selectedCount }} 条代办事项吗？
-      </n-popconfirm>
-      <n-button quaternary @click="emit('openSettings')">设置</n-button>
-      <n-input
-        class="search-input"
-        :value="searchQuery"
-        clearable
-        placeholder="搜索标题、描述、状态字段"
-        @update:value="onSearchInput"
-      />
-      <div class="status-filters">
-        <span>状态筛选</span>
-        <n-checkbox-group v-model:value="selectedStatuses" @update:value="onFilterChange">
+      <div class="toolbar-row">
+        <n-button type="primary" @click="openNew">新建</n-button>
+        <n-popconfirm @positive-click="deleteSelected">
+          <template #trigger>
+            <n-button type="error" :disabled="selectedCount === 0">
+              删除选中{{ selectedCount > 0 ? ` (${selectedCount})` : "" }}
+            </n-button>
+          </template>
+          确定删除选中的 {{ selectedCount }} 条代办事项吗？
+        </n-popconfirm>
+        <n-button quaternary @click="emit('openSettings')">设置</n-button>
+        <n-input
+          class="search-input"
+          :value="searchQuery"
+          clearable
+          placeholder="搜索标题、描述、状态字段"
+          @update:value="onSearchInput"
+        />
+        <div class="status-filters">
+          <span>状态筛选</span>
+          <n-checkbox-group v-model:value="selectedStatuses" @update:value="onFilterChange">
+            <n-space>
+              <n-checkbox
+                v-for="opt in statusOptions"
+                :key="opt.value"
+                :value="opt.value"
+                :label="opt.label"
+              />
+            </n-space>
+          </n-checkbox-group>
+        </div>
+      </div>
+      <div class="toolbar-row tag-filters">
+        <span>标签筛选</span>
+        <n-checkbox
+          :checked="tagMatchMode === 'all'"
+          label="同时满足"
+          @update:checked="onMatchAllChange"
+        />
+        <n-checkbox-group v-model:value="selectedTags" @update:value="onTagFilterChange">
           <n-space>
             <n-checkbox
-              v-for="opt in statusOptions"
+              v-for="opt in tagOptions"
               :key="opt.value"
               :value="opt.value"
               :label="opt.label"
@@ -226,6 +259,7 @@ defineExpose({ reload });
           @update:checked="toggleSelectAll"
         />
         <span>标题</span>
+        <span>标签</span>
         <span>状态</span>
         <span>计划完成时间</span>
         <span>最后更新</span>
@@ -253,7 +287,20 @@ defineExpose({ reload });
             @click.stop
           />
           <div class="list-row-main drag-handle" @click="openExisting(item)">
-            <span>{{ item.title }}</span>
+            <span class="title-text">{{ item.title }}</span>
+            <div class="tag-cell">
+              <n-space v-if="item.tags?.length" size="small" class="tag-badges">
+                <n-tag
+                  v-for="tagId in item.tags"
+                  :key="tagId"
+                  size="small"
+                  :bordered="false"
+                  :style="tagStyleForTag(tagColor(tagId))"
+                >
+                  {{ tagLabel(tagId) }}
+                </n-tag>
+              </n-space>
+            </div>
             <span>{{ statusLabel(item.status) }}</span>
             <span>{{ formatLocalDateTime(item.dueDate) }}</span>
             <span>{{ formatServerDateTime(item.updatedAt) }}</span>

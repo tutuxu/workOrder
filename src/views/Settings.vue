@@ -3,6 +3,7 @@ import { computed, onMounted, onUnmounted, ref } from "vue";
 import { useDialog, useMessage } from "naive-ui";
 import * as settingsApi from "../api/settings";
 import StatusConfigPanel from "../components/StatusConfigPanel.vue";
+import TagConfigPanel from "../components/TagConfigPanel.vue";
 import ShortcutConfigPanel from "../components/ShortcutConfigPanel.vue";
 import { registerShortcut, unregisterShortcut } from "../composables/useShortcuts";
 
@@ -177,6 +178,12 @@ function close() {
 
         <n-form-item label="代办状态">
           <StatusConfigPanel />
+        </n-form-item>
+
+        <n-divider />
+
+        <n-form-item label="标签管理">
+          <TagConfigPanel />
         </n-form-item>
 
         <n-divider />

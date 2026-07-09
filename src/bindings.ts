@@ -4,8 +4,8 @@ import { invoke as __TAURI_INVOKE } from "@tauri-apps/api/core";
 
 /** Commands */
 export const commands = {
-	/**  按状态筛选工单列表，按 priority 升序、updated_at 降序排列；`query` 为空时不做文本筛选。 */
-	listWorkOrders: (statuses: string[], query: string) => __TAURI_INVOKE<WorkOrder[]>("list_work_orders", { statuses, query }),
+	/**  按状态、标签与文本搜索筛选工单列表。 */
+	listWorkOrders: (statuses: string[], tags: string[], tagMatchMode: TagMatchMode, query: string) => __TAURI_INVOKE<WorkOrder[]>("list_work_orders", { statuses, tags, tagMatchMode, query }),
 	/**  按 id 获取单条工单，不存在时返回 `NOT_FOUND`。 */
 	getWorkOrder: (id: number) => __TAURI_INVOKE<WorkOrder>("get_work_order", { id }),
 	/**  创建工单；title 必填，priority 自动递增。 */
@@ -24,6 +24,13 @@ export const commands = {
 	pickStatusConfigFile: () => __TAURI_INVOKE<string | null>("pick_status_config_file"),
 	exportStatusConfig: (savePath: string) => __TAURI_INVOKE<ExportStatusConfigResult>("export_status_config", { savePath }),
 	importStatusConfig: (filePath: string) => __TAURI_INVOKE<StatusConfig>("import_status_config", { filePath }),
+	getTagConfig: () => __TAURI_INVOKE<TagConfig>("get_tag_config"),
+	saveTagConfig: (config: TagConfig) => __TAURI_INVOKE<null>("save_tag_config", { config }),
+	countWorkOrdersByTag: (tagId: string) => __TAURI_INVOKE<number>("count_work_orders_by_tag", { tagId }),
+	pickTagConfigSavePath: () => __TAURI_INVOKE<string | null>("pick_tag_config_save_path"),
+	pickTagConfigFile: () => __TAURI_INVOKE<string | null>("pick_tag_config_file"),
+	exportTagConfig: (savePath: string) => __TAURI_INVOKE<ExportTagConfigResult>("export_tag_config", { savePath }),
+	importTagConfig: (filePath: string) => __TAURI_INVOKE<TagConfig>("import_tag_config", { filePath }),
 	/**  列出指定工单下的全部进度日志，按 created_at 降序。 */
 	listProgressLogs: (workOrderId: number) => __TAURI_INVOKE<ProgressLog[]>("list_progress_logs", { workOrderId }),
 	/**  为工单添加进度日志，title 不能为空。 */
@@ -76,6 +83,11 @@ export type ExportBackupResult = {
 };
 
 export type ExportStatusConfigResult = {
+	success: boolean,
+	filePath: string,
+};
+
+export type ExportTagConfigResult = {
 	success: boolean,
 	filePath: string,
 };
@@ -141,6 +153,20 @@ export type StatusField = {
 /**  状态字段类型。 */
 export type StatusFieldType = "text" | "textarea" | "date";
 
+export type TagConfig = {
+	version: number,
+	tags: TagDefinition[],
+};
+
+export type TagDefinition = {
+	id: string,
+	label: string,
+	order: number,
+	color?: string,
+};
+
+export type TagMatchMode = "any" | "all";
+
 /**  工单完整记录（含 id、priority 与时间戳）。 */
 export type WorkOrder = {
 	id: number | null,
@@ -150,6 +176,7 @@ export type WorkOrder = {
 	priority: number,
 	extraFields: { [key in string]: string } | null,
 	dueDate: string | null,
+	tags?: string[],
 	createdAt: string,
 	updatedAt: string,
 };
@@ -161,5 +188,6 @@ export type WorkOrderInput = {
 	status: string,
 	extraFields: { [key in string]: string } | null,
 	dueDate: string | null,
+	tags?: string[],
 };
 

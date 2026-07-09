@@ -113,6 +113,59 @@ pub fn migrate_attachment(conn: &Connection) -> Result<(), ServiceError> {
     Ok(())
 }
 
+fn table_exists(conn: &Connection, name: &str) -> Result<bool, ServiceError> {
+    let count: i64 = conn.query_row(
+        "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name = ?1",
+        [name],
+        |row| row.get(0),
+    )?;
+    Ok(count > 0)
+}
+
+pub fn migrate_work_order_tag(conn: &Connection) -> Result<(), ServiceError> {
+    if table_exists(conn, "work_order_tag")? {
+        return Ok(());
+    }
+    conn.execute_batch(
+        "CREATE TABLE work_order_tag (
+            work_order_id INTEGER NOT NULL REFERENCES work_order(id) ON DELETE CASCADE,
+            tag_id          TEXT    NOT NULL,
+            PRIMARY KEY (work_order_id, tag_id)
+        );
+        CREATE INDEX idx_work_order_tag_tag_id ON work_order_tag(tag_id);",
+    )?;
+    Ok(())
+}
+
+#[cfg(test)]
+mod migrate_tag_tests {
+    use crate::db::connection::open_connection;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn temp_dir(prefix: &str) -> std::path::PathBuf {
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        std::env::temp_dir().join(format!("{prefix}-{nanos}"))
+    }
+
+    #[test]
+    fn creates_work_order_tag_table() {
+        let dir = temp_dir("migrate-tag");
+        let conn = open_connection(&dir).unwrap();
+        let count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='work_order_tag'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(count, 1);
+        let _ = std::fs::remove_dir_all(dir);
+    }
+}
+
 #[cfg(test)]
 mod extra_fields_tests {
     use super::*;

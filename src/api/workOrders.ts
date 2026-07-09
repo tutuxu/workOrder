@@ -1,13 +1,15 @@
 import { commands } from "../bindings";
-import type { WorkOrder, WorkOrderInput } from "../bindings";
+import type { TagMatchMode, WorkOrder, WorkOrderInput } from "../bindings";
 
 export type { WorkOrder, WorkOrderInput };
 
 export function listWorkOrders(
   statuses: string[],
+  tags: string[],
+  tagMatchMode: TagMatchMode,
   query = "",
 ): Promise<WorkOrder[]> {
-  return commands.listWorkOrders(statuses, query.trim());
+  return commands.listWorkOrders(statuses, tags, tagMatchMode, query.trim());
 }
 
 export function getWorkOrder(id: number): Promise<WorkOrder> {

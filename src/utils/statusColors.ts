@@ -90,3 +90,16 @@ export function tagStyleForStatus(color: string): Record<string, string> {
     WebkitBackdropFilter: "blur(6px)",
   };
 }
+
+export function tagColorFromConfig(
+  config: { tags: { id: string; color?: unknown }[] } | null,
+  tagId: string,
+): string {
+  if (!config) return DEFAULT_STATUS_COLOR;
+  const found = config.tags.find((t) => t.id === tagId);
+  return normalizeStatusColor(found?.color);
+}
+
+export function tagStyleForTag(color: string): Record<string, string> {
+  return tagStyleForStatus(color);
+}
