@@ -1,6 +1,6 @@
 [package]
 name = "workorder"
-version = "1.1.2"
+version = "1.1.3"
 description = "workOrder desktop app"
 authors = ["workOrder"]
 edition = "2021"
