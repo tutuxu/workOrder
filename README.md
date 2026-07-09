@@ -50,8 +50,8 @@ portable/
 
 | 文件 | 说明 |
 |------|------|
-| `workOrder_1.1.3_x64-setup.exe` | NSIS 安装程序，推荐；会自动处理 WebView2 |
-| `workOrder_1.1.3_x64_en-US.msi` | MSI 安装包 |
+| `workOrder_1.1.4_x64-setup.exe` | NSIS 安装程序，推荐；会自动处理 WebView2 |
+| `workOrder_1.1.4_x64_en-US.msi` | MSI 安装包 |
 
 安装后从开始菜单或桌面快捷方式启动。数据默认保存在安装目录旁的 `data/` 下。
 
@@ -200,8 +200,8 @@ release/
 │   ├── 启动 workOrder.bat
 │   └── data/
 └── installer/             # 安装包
-    ├── workOrder_1.1.3_x64-setup.exe
-    └── workOrder_1.1.3_x64_en-US.msi
+    ├── workOrder_1.1.4_x64-setup.exe
+    └── workOrder_1.1.4_x64_en-US.msi
 ```
 
 将 **`release/portable`** 文件夹压缩为 zip 即可分享给他人一键运行。
