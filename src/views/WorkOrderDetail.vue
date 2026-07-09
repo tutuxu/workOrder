@@ -73,8 +73,22 @@ const editingLogId = ref<number | null>(null);
 const showProgressForm = ref(false);
 
 const workOrderGalleryRef = ref<InstanceType<typeof AttachmentGallery> | null>(null);
-const progressGalleryRef = ref<InstanceType<typeof ProgressLogForm> | null>(null);
+const addProgressFormRef = ref<InstanceType<typeof ProgressLogForm> | null>(null);
+const editProgressFormRef = ref<InstanceType<typeof ProgressLogForm> | null>(null);
 const modalContainerRef = ref<HTMLElement | null>(null);
+
+function activeProgressForm(): InstanceType<typeof ProgressLogForm> | null {
+  return editProgressFormRef.value ?? addProgressFormRef.value;
+}
+
+function setEditProgressFormRef(
+  logId: number | null | undefined,
+  el: InstanceType<typeof ProgressLogForm> | null,
+) {
+  if (editingLogId.value === logId) {
+    editProgressFormRef.value = el;
+  }
+}
 
 const workOrderId = ref<number | undefined>(props.workOrder?.id ?? undefined);
 const isNew = computed(() => workOrderId.value == null);
@@ -205,22 +219,24 @@ function defaultProgressStatus(): string {
 }
 
 function clearProgressForm() {
+  activeProgressForm()?.clearStaged();
   editingLogId.value = null;
   progressTitle.value = "";
   progressContent.value = "";
   progressStatus.value = defaultProgressStatus();
   progressExtraFieldValues.value = {};
-  progressGalleryRef.value?.clearStaged();
+  editProgressFormRef.value = null;
   showProgressForm.value = false;
 }
 
 function openProgressForm() {
   editingLogId.value = null;
+  editProgressFormRef.value = null;
   progressTitle.value = "";
   progressContent.value = "";
   progressStatus.value = defaultProgressStatus();
   progressExtraFieldValues.value = {};
-  progressGalleryRef.value?.clearStaged();
+  activeProgressForm()?.clearStaged();
   showProgressForm.value = true;
 }
 
@@ -391,7 +407,7 @@ async function saveProgress() {
       const created = await progressLogApi.addProgressLog(workOrderId.value, input);
       const logId = created.id;
       if (logId != null) {
-        await progressGalleryRef.value?.uploadStaged(logId);
+        await activeProgressForm()?.uploadStaged(logId);
       }
       clearProgressForm();
     }
@@ -423,7 +439,8 @@ async function flushPendingProgress() {
 }
 
 function startEdit(log: ProgressLog) {
-  progressGalleryRef.value?.clearStaged();
+  addProgressFormRef.value?.clearStaged();
+  editProgressFormRef.value = null;
   editingLogId.value = log.id ?? null;
   progressTitle.value = log.title;
   progressContent.value = log.content ?? "";
@@ -624,7 +641,7 @@ function formatExtraFieldValue(field: StatusField, value: string | undefined): s
           <div class="progress-body">
             <ProgressLogForm
               v-if="editingLogId === log.id"
-              ref="progressGalleryRef"
+              :ref="(el) => setEditProgressFormRef(log.id, el as InstanceType<typeof ProgressLogForm> | null)"
               inline
               v-model:title="progressTitle"
               v-model:status="progressStatus"
@@ -678,7 +695,7 @@ function formatExtraFieldValue(field: StatusField, value: string | undefined): s
 
     <ProgressLogForm
       v-if="!isNew && showProgressForm && editingLogId == null"
-      ref="progressGalleryRef"
+      ref="addProgressFormRef"
       v-model:title="progressTitle"
       v-model:status="progressStatus"
       v-model:content="progressContent"
