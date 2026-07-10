@@ -17,7 +17,40 @@ body {
 }
 
 .work-order-list {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
   padding: 16px;
+  overflow: hidden;
+}
+
+.list-container {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.list-container .n-spin-container {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.list-container .n-spin-content {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.list-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .toolbar {
@@ -97,9 +130,12 @@ body {
   grid-template-columns: auto 2fr 1.2fr 1fr 1fr 1fr;
   font-weight: 600;
   color: #666;
-  background: transparent;
+  background: #f5f5f5;
   border: none;
   cursor: default;
+  position: sticky;
+  top: 0;
+  z-index: 1;
 }
 
 .list-header:hover {
