@@ -7,6 +7,7 @@ import * as workOrderApi from "../api/workOrders";
 import * as progressLogApi from "../api/progressLogs";
 import AttachmentGallery from "../components/AttachmentGallery.vue";
 import ProgressLogForm from "../components/ProgressLogForm.vue";
+import TagPicker from "../components/TagPicker.vue";
 import { useStatusConfig } from "../composables/useStatusConfig";
 import { useTagConfig } from "../composables/useTagConfig";
 import {
@@ -51,7 +52,7 @@ const {
   defaultStatus,
   load: loadStatusConfig,
 } = useStatusConfig();
-const { tagOptions, load: loadTagConfig } = useTagConfig();
+const { load: loadTagConfig } = useTagConfig();
 
 const show = ref(true);
 const saving = ref(false);
@@ -583,12 +584,7 @@ function formatExtraFieldValue(field: StatusField, value: string | undefined): s
         </n-radio-group>
       </n-form-item>
       <n-form-item label="标签">
-        <n-select
-          v-model:value="tags"
-          multiple
-          :options="tagOptions"
-          placeholder="选择标签"
-        />
+        <TagPicker v-model:value="tags" />
       </n-form-item>
       <n-form-item label="计划完成时间">
         <n-date-picker v-model:value="dueDate" type="datetime" clearable style="width: 100%" />
