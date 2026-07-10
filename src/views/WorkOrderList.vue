@@ -251,64 +251,68 @@ defineExpose({ reload });
       </div>
     </div>
 
-    <n-spin :show="loading">
-      <div class="list-row list-header">
-        <n-checkbox
-          :checked="allSelected"
-          :indeterminate="someSelected"
-          @update:checked="toggleSelectAll"
-        />
-        <span>标题</span>
-        <span>标签</span>
-        <span>状态</span>
-        <span>计划完成时间</span>
-        <span>最后更新</span>
-      </div>
-
-      <VueDraggable
-        v-model="localItems"
-        :animation="150"
-        handle=".drag-handle"
-        @end="onDragEnd"
-      >
-        <div
-          v-for="item in localItems"
-          :key="item.id ?? item.updatedAt"
-          class="list-row"
-          :class="{
-            'overdue-row': isOverdue(item),
-            'selected-row': isSelected(item.id),
-          }"
-          :style="rowStyle(item)"
-        >
-          <n-checkbox
-            :checked="isSelected(item.id)"
-            @update:checked="(checked: boolean) => toggleSelect(item.id, checked)"
-            @click.stop
-          />
-          <div class="list-row-main drag-handle" @click="openExisting(item)">
-            <span class="title-text">{{ item.title }}</span>
-            <div class="tag-cell">
-              <n-space v-if="item.tags?.length" size="small" class="tag-badges">
-                <n-tag
-                  v-for="tagId in item.tags"
-                  :key="tagId"
-                  size="small"
-                  :bordered="false"
-                  :style="tagStyleForTag(tagColor(tagId))"
-                >
-                  {{ tagLabel(tagId) }}
-                </n-tag>
-              </n-space>
-            </div>
-            <span>{{ statusLabel(item.status) }}</span>
-            <span>{{ formatLocalDateTime(item.dueDate) }}</span>
-            <span>{{ formatServerDateTime(item.updatedAt) }}</span>
+    <div class="list-container">
+      <n-spin :show="loading">
+        <div class="list-scroll">
+          <div class="list-row list-header">
+            <n-checkbox
+              :checked="allSelected"
+              :indeterminate="someSelected"
+              @update:checked="toggleSelectAll"
+            />
+            <span>标题</span>
+            <span>标签</span>
+            <span>状态</span>
+            <span>计划完成时间</span>
+            <span>最后更新</span>
           </div>
-        </div>
-      </VueDraggable>
 
-      <n-empty v-if="!loading && localItems.length === 0" :description="emptyDescription" />
-    </n-spin>
+          <VueDraggable
+            v-model="localItems"
+            :animation="150"
+            handle=".drag-handle"
+            @end="onDragEnd"
+          >
+            <div
+              v-for="item in localItems"
+              :key="item.id ?? item.updatedAt"
+              class="list-row"
+              :class="{
+                'overdue-row': isOverdue(item),
+                'selected-row': isSelected(item.id),
+              }"
+              :style="rowStyle(item)"
+            >
+              <n-checkbox
+                :checked="isSelected(item.id)"
+                @update:checked="(checked: boolean) => toggleSelect(item.id, checked)"
+                @click.stop
+              />
+              <div class="list-row-main drag-handle" @click="openExisting(item)">
+                <span class="title-text">{{ item.title }}</span>
+                <div class="tag-cell">
+                  <n-space v-if="item.tags?.length" size="small" class="tag-badges">
+                    <n-tag
+                      v-for="tagId in item.tags"
+                      :key="tagId"
+                      size="small"
+                      :bordered="false"
+                      :style="tagStyleForTag(tagColor(tagId))"
+                    >
+                      {{ tagLabel(tagId) }}
+                    </n-tag>
+                  </n-space>
+                </div>
+                <span>{{ statusLabel(item.status) }}</span>
+                <span>{{ formatLocalDateTime(item.dueDate) }}</span>
+                <span>{{ formatServerDateTime(item.updatedAt) }}</span>
+              </div>
+            </div>
+          </VueDraggable>
+
+          <n-empty v-if="!loading && localItems.length === 0" :description="emptyDescription" />
+        </div>
+      </n-spin>
+    </div>
   </div>
 </template>
