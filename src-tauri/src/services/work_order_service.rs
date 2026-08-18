@@ -39,6 +39,7 @@ fn row_to_work_order(row: &rusqlite::Row<'_>) -> Result<WorkOrder, rusqlite::Err
         tags: vec![],
         created_at: read_datetime_column(row, "created_at")?,
         updated_at: read_datetime_column(row, "updated_at")?,
+        deleted_at: read_optional_datetime_column(row, "deleted_at")?,
     })
 }
 
@@ -124,7 +125,7 @@ fn enrich_with_tags(conn: &Connection, mut wo: WorkOrder) -> Result<WorkOrder, S
     Ok(wo)
 }
 
-const WORK_ORDER_SELECT: &str = "SELECT id, title, description, status, priority, extra_fields, due_date, created_at, updated_at FROM work_order";
+const WORK_ORDER_SELECT: &str = "SELECT id, title, description, status, priority, extra_fields, due_date, created_at, updated_at, deleted_at FROM work_order";
 
 /// 按 id 获取工单，不存在返回 [`ServiceError::NotFound`]。
 pub fn get_required(conn: &Connection, id: i64) -> Result<WorkOrder, ServiceError> {
@@ -178,7 +179,7 @@ pub fn update(
     config: &StatusConfig,
     tag_config: &TagConfig,
 ) -> Result<WorkOrder, ServiceError> {
-    get_required(conn, id)?;
+    ensure_not_trashed(conn, id)?;
     validate_input(config, tag_config, &input)?;
     let now = Utc::now().naive_utc();
     let extra_fields = normalize_extra_fields(input.extra_fields);
@@ -197,6 +198,63 @@ pub fn update(
     )?;
     attach_tags(conn, id, &tags)?;
     get_required(conn, id)
+}
+
+pub const RECYCLE_BIN_VALIDATION: &str = "Work order is in recycle bin";
+
+/// 已在回收站的工单禁止修改。
+pub fn ensure_not_trashed(conn: &Connection, id: i64) -> Result<(), ServiceError> {
+    let wo = get_required(conn, id)?;
+    if wo.deleted_at.is_some() {
+        return Err(ServiceError::Validation(RECYCLE_BIN_VALIDATION.into()));
+    }
+    Ok(())
+}
+
+/// 回收站列表：已删除事项，按 deleted_at 新到旧。
+pub fn list_trashed(conn: &Connection) -> Result<Vec<WorkOrder>, ServiceError> {
+    let mut stmt = conn.prepare(&format!(
+        "{WORK_ORDER_SELECT} WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC"
+    ))?;
+    let rows = stmt.query_map([], row_to_work_order)?;
+    let mut result = Vec::new();
+    for row in rows {
+        result.push(enrich_with_tags(conn, row?)?);
+    }
+    Ok(result)
+}
+
+/// 将未删除的 id 移入回收站；已在回收站或不存在的 id 跳过。
+pub fn trash_work_orders(conn: &mut Connection, ids: &[i64]) -> Result<(), ServiceError> {
+    if ids.is_empty() {
+        return Ok(());
+    }
+    let tx = conn.transaction()?;
+    let now = format_datetime(Utc::now().naive_utc());
+    for id in ids {
+        tx.execute(
+            "UPDATE work_order SET deleted_at = ?1 WHERE id = ?2 AND deleted_at IS NULL",
+            params![now, id],
+        )?;
+    }
+    tx.commit()?;
+    Ok(())
+}
+
+/// 将回收站中的 id 还原；不在回收站或不存在的 id 跳过。
+pub fn restore_work_orders(conn: &mut Connection, ids: &[i64]) -> Result<(), ServiceError> {
+    if ids.is_empty() {
+        return Ok(());
+    }
+    let tx = conn.transaction()?;
+    for id in ids {
+        tx.execute(
+            "UPDATE work_order SET deleted_at = NULL WHERE id = ?1 AND deleted_at IS NOT NULL",
+            params![id],
+        )?;
+    }
+    tx.commit()?;
+    Ok(())
 }
 
 /// 删除工单及其全部进度日志。
@@ -295,10 +353,9 @@ pub fn find_by_filters(
         where_clauses.push(format!("({})", search_parts.join(" OR ")));
     }
 
-    if !where_clauses.is_empty() {
-        sql.push_str(" WHERE ");
-        sql.push_str(&where_clauses.join(" AND "));
-    }
+    where_clauses.insert(0, "deleted_at IS NULL".into());
+    sql.push_str(" WHERE ");
+    sql.push_str(&where_clauses.join(" AND "));
 
     sql.push_str(" ORDER BY priority ASC, updated_at DESC");
     let param_refs: Vec<&dyn rusqlite::types::ToSql> = params.iter().map(|p| p.as_ref()).collect();
@@ -334,7 +391,7 @@ pub fn update_priorities(conn: &Connection, ordered_ids: &[i64]) -> Result<(), S
         return Ok(());
     }
     for (i, id) in ordered_ids.iter().enumerate() {
-        get_required(conn, *id)?;
+        ensure_not_trashed(conn, *id)?;
         conn.execute(
             "UPDATE work_order SET priority = ?1 WHERE id = ?2",
             params![i as i32, id],
@@ -679,6 +736,101 @@ mod tests {
         .unwrap();
         assert_eq!(result.len(), 1);
         assert_eq!(result[0].title, "Match");
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn find_by_filters_excludes_trashed_and_list_trashed_is_newest_first() {
+        let (mut conn, dir) = temp_db();
+        let a = create(&conn, input("A"), &config(), &tag_config()).unwrap();
+        let b = create(&conn, input("B"), &config(), &tag_config()).unwrap();
+        trash_work_orders(&mut conn, &[a.id.unwrap()]).unwrap();
+        std::thread::sleep(std::time::Duration::from_millis(1100));
+        trash_work_orders(&mut conn, &[b.id.unwrap()]).unwrap();
+        let main = find_by_statuses(&conn, &[], None).unwrap();
+        assert!(main.is_empty());
+        let trash = list_trashed(&conn).unwrap();
+        assert_eq!(trash.len(), 2);
+        assert_eq!(trash[0].id, b.id);
+        assert_eq!(trash[1].id, a.id);
+        assert!(trash[0].deleted_at.is_some());
+        drop(conn);
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn trash_hides_from_main_keeps_progress_and_restore_preserves_priority_updated_at() {
+        let (mut conn, dir) = temp_db();
+        let wo = create(&conn, input("Keep"), &config(), &tag_config()).unwrap();
+        let id = wo.id.unwrap();
+        let priority = wo.priority;
+        let updated_at = wo.updated_at;
+        crate::services::progress_log_service::add_log(
+            &conn,
+            id,
+            &crate::models::progress_log::ProgressLogInput {
+                title: "step".into(),
+                content: None,
+                status: "IN_PROGRESS".into(),
+                extra_fields: None,
+            },
+            &config(),
+        )
+        .unwrap();
+        trash_work_orders(&mut conn, &[id]).unwrap();
+        assert!(find_by_statuses(&conn, &[], None).unwrap().is_empty());
+        let logs = crate::services::progress_log_service::find_by_work_order_id(&conn, id).unwrap();
+        assert_eq!(logs.len(), 1);
+        restore_work_orders(&mut conn, &[id]).unwrap();
+        let restored = get_required(&conn, id).unwrap();
+        assert!(restored.deleted_at.is_none());
+        assert_eq!(restored.priority, priority);
+        assert_eq!(restored.updated_at, updated_at);
+        drop(conn);
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn trash_restore_skip_mismatched_and_empty_ids() {
+        let (mut conn, dir) = temp_db();
+        let wo = create(&conn, input("Live"), &config(), &tag_config()).unwrap();
+        let id = wo.id.unwrap();
+        trash_work_orders(&mut conn, &[]).unwrap();
+        restore_work_orders(&mut conn, &[]).unwrap();
+        trash_work_orders(&mut conn, &[id, 9_999_999]).unwrap();
+        trash_work_orders(&mut conn, &[id]).unwrap();
+        restore_work_orders(&mut conn, &[id, 9_999_999]).unwrap();
+        restore_work_orders(&mut conn, &[id]).unwrap();
+        assert_eq!(find_by_statuses(&conn, &[], None).unwrap().len(), 1);
+        drop(conn);
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn update_trashed_work_order_is_rejected() {
+        let (mut conn, dir) = temp_db();
+        let wo = create(&conn, input("X"), &config(), &tag_config()).unwrap();
+        let id = wo.id.unwrap();
+        trash_work_orders(&mut conn, &[id]).unwrap();
+        let err = update(&conn, id, input("X2"), &config(), &tag_config()).unwrap_err();
+        match err {
+            ServiceError::Validation(msg) => assert_eq!(msg, RECYCLE_BIN_VALIDATION),
+            other => panic!("{other:?}"),
+        }
+        drop(conn);
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn delete_still_removes_trashed_row() {
+        let (mut conn, dir) = temp_db();
+        let wo = create(&conn, input("Gone"), &config(), &tag_config()).unwrap();
+        let id = wo.id.unwrap();
+        trash_work_orders(&mut conn, &[id]).unwrap();
+        delete(&conn, id).unwrap();
+        let err = get_required(&conn, id).unwrap_err();
+        assert!(matches!(err, ServiceError::NotFound(_)));
+        drop(conn);
         let _ = std::fs::remove_dir_all(dir);
     }
 }

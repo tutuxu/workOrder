@@ -122,3 +122,62 @@ pub fn update_priorities(
 pub fn is_work_order_overdue(work_order: WorkOrder) -> bool {
     work_order_service::is_overdue(&work_order)
 }
+
+/// 列出回收站中的工单，按删除时间新到旧。
+#[tauri::command]
+#[specta::specta]
+pub fn list_trashed_work_orders(state: State<'_, AppState>) -> Result<Vec<WorkOrder>, String> {
+    let conn = state
+        .db
+        .lock()
+        .map_err(|_| "database lock poisoned".to_string())?;
+    work_order_service::list_trashed(&conn).map_err(map_err)
+}
+
+/// 将事项移入回收站；已在回收站或不存在的 id 跳过。
+#[tauri::command]
+#[specta::specta]
+pub fn trash_work_orders(state: State<'_, AppState>, ids: Vec<i64>) -> Result<(), String> {
+    let mut conn = state
+        .db
+        .lock()
+        .map_err(|_| "database lock poisoned".to_string())?;
+    work_order_service::trash_work_orders(&mut conn, &ids).map_err(map_err)
+}
+
+/// 从回收站还原事项；不在回收站或不存在的 id 跳过。
+#[tauri::command]
+#[specta::specta]
+pub fn restore_work_orders(state: State<'_, AppState>, ids: Vec<i64>) -> Result<(), String> {
+    let mut conn = state
+        .db
+        .lock()
+        .map_err(|_| "database lock poisoned".to_string())?;
+    work_order_service::restore_work_orders(&mut conn, &ids).map_err(map_err)
+}
+
+/// 彻底删除事项（含附件与进度）；不存在的 id 跳过。
+#[tauri::command]
+#[specta::specta]
+pub fn permanently_delete_work_orders(
+    state: State<'_, AppState>,
+    ids: Vec<i64>,
+) -> Result<(), String> {
+    if ids.is_empty() {
+        return Ok(());
+    }
+    let mut conn = state
+        .db
+        .lock()
+        .map_err(|_| "database lock poisoned".to_string())?;
+    let tx = conn.transaction().map_err(|e| map_err(e.into()))?;
+    for id in ids {
+        if work_order_service::get_required(&tx, id).is_err() {
+            continue;
+        }
+        attachment_service::delete_all_for_work_order(&tx, &state.data_dir, id).map_err(map_err)?;
+        work_order_service::delete(&tx, id).map_err(map_err)?;
+    }
+    tx.commit().map_err(|e| map_err(e.into()))?;
+    Ok(())
+}

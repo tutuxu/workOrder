@@ -31,6 +31,22 @@ export function deleteWorkOrder(id: number): Promise<void> {
   return commands.deleteWorkOrder(id).then(() => undefined);
 }
 
+export function listTrashedWorkOrders(): Promise<WorkOrder[]> {
+  return commands.listTrashedWorkOrders();
+}
+
+export function trashWorkOrders(ids: number[]): Promise<void> {
+  return commands.trashWorkOrders(ids).then(() => undefined);
+}
+
+export function restoreWorkOrders(ids: number[]): Promise<void> {
+  return commands.restoreWorkOrders(ids).then(() => undefined);
+}
+
+export function permanentlyDeleteWorkOrders(ids: number[]): Promise<void> {
+  return commands.permanentlyDeleteWorkOrders(ids).then(() => undefined);
+}
+
 export function updatePriorities(orderedIds: number[]): Promise<void> {
   return commands.updatePriorities(orderedIds).then(() => undefined);
 }

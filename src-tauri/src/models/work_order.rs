@@ -21,6 +21,8 @@ pub struct WorkOrder {
     pub tags: Vec<String>,
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
+    #[serde(default)]
+    pub deleted_at: Option<NaiveDateTime>,
 }
 
 /// 创建或更新工单时的输入（不含 priority 与时间戳，由 Service 层填充）。

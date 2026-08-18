@@ -260,3 +260,79 @@ body {
   flex: 1;
   min-height: 0;
 }
+
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 12px;
+  padding-bottom: 8px;
+}
+
+.work-order-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  background: #fff;
+  border: 1px solid #e8e8e8;
+  border-radius: 8px;
+  min-height: 120px;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  cursor: pointer;
+}
+
+.work-order-card:hover {
+  border-color: #18a058;
+}
+
+.work-order-card.selected-row {
+  border-color: #18a058;
+  background: #f6ffed;
+}
+
+.work-order-card .card-title {
+  font-weight: 600;
+  word-break: break-word;
+}
+
+.work-order-card .card-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  color: #666;
+}
+
+.work-order-card .card-drag-handle {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  padding: 2px 6px;
+  font-size: 12px;
+  color: #999;
+  cursor: grab;
+  user-select: none;
+}
+
+.work-order-card .card-checkbox {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+}
+
+.work-order-card.has-checkbox {
+  padding-top: 36px;
+}
+
+.recycle-bin-modal .recycle-bin {
+  min-height: 360px;
+}
+
+.recycle-bin-list .list-header {
+  grid-template-columns: auto 2fr 1.2fr 1fr 1.4fr;
+}
+
+.recycle-bin-list .list-row-main {
+  grid-template-columns: 2fr 1.2fr 1fr 1.4fr;
+}

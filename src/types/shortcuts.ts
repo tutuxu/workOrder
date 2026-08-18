@@ -1,4 +1,9 @@
-export type ShortcutContext = "list" | "detail" | "detail.progressForm" | "settings";
+export type ShortcutContext =
+  | "list"
+  | "detail"
+  | "detail.progressForm"
+  | "settings"
+  | "recycleBin";
 
 export type ShortcutActionId =
   | "list.new"

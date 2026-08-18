@@ -130,6 +130,18 @@ fn table_exists(conn: &Connection, name: &str) -> Result<bool, ServiceError> {
     Ok(count > 0)
 }
 
+/// 为 work_order 表添加 deleted_at 列（软删除 / 回收站）。
+pub fn migrate_work_order_deleted_at(conn: &Connection) -> Result<(), ServiceError> {
+    if !column_exists(conn, "work_order", "deleted_at")? {
+        conn.execute("ALTER TABLE work_order ADD COLUMN deleted_at TIMESTAMP", [])?;
+    }
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_work_order_deleted_at ON work_order(deleted_at)",
+        [],
+    )?;
+    Ok(())
+}
+
 pub fn migrate_work_order_tag(conn: &Connection) -> Result<(), ServiceError> {
     if table_exists(conn, "work_order_tag")? {
         return Ok(());
@@ -208,6 +220,56 @@ mod extra_fields_tests {
             .unwrap();
         assert!(json.contains("waitingFor"));
         assert!(json.contains("运维组"));
+        let _ = std::fs::remove_dir_all(dir);
+    }
+}
+
+#[cfg(test)]
+mod deleted_at_tests {
+    use super::*;
+    use crate::db::connection::open_connection;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn temp_dir(prefix: &str) -> std::path::PathBuf {
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        std::env::temp_dir().join(format!("{prefix}-{nanos}"))
+    }
+
+    #[test]
+    fn existing_rows_have_null_deleted_at_and_column_is_writable() {
+        let dir = temp_dir("migrate-deleted-at");
+        let conn = open_connection(&dir).unwrap();
+        conn.execute(
+            "INSERT INTO work_order (title, description, status, priority, due_date, created_at, updated_at)
+             VALUES ('Keep', NULL, 'NOT_STARTED', 0, NULL, datetime('now'), datetime('now'))",
+            [],
+        )
+        .unwrap();
+        migrate_work_order_deleted_at(&conn).unwrap();
+        let deleted: Option<String> = conn
+            .query_row(
+                "SELECT deleted_at FROM work_order WHERE title = 'Keep'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert!(deleted.is_none());
+        conn.execute(
+            "UPDATE work_order SET deleted_at = datetime('now') WHERE title = 'Keep'",
+            [],
+        )
+        .unwrap();
+        let deleted: Option<String> = conn
+            .query_row(
+                "SELECT deleted_at FROM work_order WHERE title = 'Keep'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert!(deleted.is_some());
         let _ = std::fs::remove_dir_all(dir);
     }
 }

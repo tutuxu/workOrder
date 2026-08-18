@@ -4,6 +4,13 @@ import { tagStyleForTag } from "../utils/statusColors";
 
 const selectedTags = defineModel<string[]>("value", { default: () => [] });
 
+const props = withDefaults(
+  defineProps<{
+    disabled?: boolean;
+  }>(),
+  { disabled: false },
+);
+
 const { tagOptions, tagColor } = useTagConfig();
 
 function isSelected(tagId: string): boolean {
@@ -11,6 +18,7 @@ function isSelected(tagId: string): boolean {
 }
 
 function toggleTag(tagId: string): void {
+  if (props.disabled) return;
   if (isSelected(tagId)) {
     selectedTags.value = selectedTags.value.filter((id) => id !== tagId);
   } else {
@@ -23,7 +31,7 @@ function tagStyle(tagId: string): Record<string, string> {
   if (isSelected(tagId)) {
     return {
       ...tagStyleForTag(color),
-      cursor: "pointer",
+      cursor: props.disabled ? "default" : "pointer",
       boxShadow: `0 0 0 2px ${color}66`,
     };
   }
@@ -31,7 +39,7 @@ function tagStyle(tagId: string): Record<string, string> {
     backgroundColor: "rgba(255, 255, 255, 0.6)",
     color: "#333639",
     border: `2px solid ${color}`,
-    cursor: "pointer",
+    cursor: props.disabled ? "default" : "pointer",
   };
 }
 </script>
@@ -45,6 +53,7 @@ function tagStyle(tagId: string): Record<string, string> {
       :bordered="false"
       :style="tagStyle(opt.value)"
       class="tag-picker-item"
+      :class="{ disabled: props.disabled }"
       @click="toggleTag(opt.value)"
     >
       {{ opt.label }}

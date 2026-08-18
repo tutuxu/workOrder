@@ -5,6 +5,7 @@ import { isTauri } from "./tauri";
 import WorkOrderList from "./views/WorkOrderList.vue";
 import WorkOrderDetail from "./views/WorkOrderDetail.vue";
 import Settings from "./views/Settings.vue";
+import RecycleBin from "./views/RecycleBin.vue";
 import type { WorkOrder } from "./types";
 import {
   handleShortcutKeydown,
@@ -14,11 +15,14 @@ import {
 
 const detailVisible = ref(false);
 const selectedOrder = ref<WorkOrder | null>(null);
+const detailReadOnly = ref(false);
 const listRef = ref<InstanceType<typeof WorkOrderList> | null>(null);
 const settingsVisible = ref(false);
+const recycleBinVisible = ref(false);
 
-function openDetail(order: WorkOrder | null) {
+function openDetail(order: WorkOrder | null, readOnly = false) {
   selectedOrder.value = order;
+  detailReadOnly.value = readOnly;
   detailVisible.value = true;
 }
 
@@ -29,6 +33,7 @@ async function onSaved() {
 function onClosed() {
   detailVisible.value = false;
   selectedOrder.value = null;
+  detailReadOnly.value = false;
 }
 
 function openSettings() {
@@ -40,9 +45,19 @@ function onSettingsClosed() {
   void listRef.value?.reload();
 }
 
+function openRecycleBin() {
+  recycleBinVisible.value = true;
+}
+
+function onRecycleBinClosed() {
+  recycleBinVisible.value = false;
+  void listRef.value?.reload();
+}
+
 function onGlobalKeydown(event: KeyboardEvent) {
   handleShortcutKeydown(event, {
     settingsOpen: settingsVisible.value,
+    recycleBinOpen: recycleBinVisible.value,
     detailOpen: detailVisible.value,
     progressFormVisible: shortcutUiState.progressFormVisible.value,
   });
@@ -77,14 +92,21 @@ onUnmounted(() => {
           ref="listRef"
           @open-detail="openDetail"
           @open-settings="openSettings"
+          @open-recycle-bin="openRecycleBin"
+        />
+        <Settings v-if="settingsVisible" @closed="onSettingsClosed" />
+        <RecycleBin
+          v-if="recycleBinVisible"
+          @closed="onRecycleBinClosed"
+          @open-detail="(order) => openDetail(order, true)"
         />
         <WorkOrderDetail
           v-if="detailVisible"
           :work-order="selectedOrder"
+          :read-only="detailReadOnly"
           @saved="onSaved"
           @closed="onClosed"
         />
-        <Settings v-if="settingsVisible" @closed="onSettingsClosed" />
       </n-message-provider>
     </n-dialog-provider>
   </n-config-provider>

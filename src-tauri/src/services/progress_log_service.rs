@@ -10,7 +10,7 @@ use crate::error::ServiceError;
 use crate::models::progress_log::{ProgressLog, ProgressLogInput};
 use crate::models::status_config::StatusConfig;
 use crate::services::status_config_service;
-use crate::services::work_order_service::get_required;
+use crate::services::work_order_service::ensure_not_trashed;
 
 fn read_extra_fields(row: &rusqlite::Row<'_>) -> Result<Option<HashMap<String, String>>, rusqlite::Error> {
     let raw: Option<String> = row.get("extra_fields")?;
@@ -117,7 +117,7 @@ pub fn add_log(
     config: &StatusConfig,
 ) -> Result<ProgressLog, ServiceError> {
     validate_input(config, input)?;
-    get_required(conn, work_order_id)?;
+    ensure_not_trashed(conn, work_order_id)?;
     let now = Utc::now().naive_utc();
     let content = input
         .content
@@ -150,6 +150,7 @@ pub fn update_log(
 ) -> Result<ProgressLog, ServiceError> {
     validate_input(config, input)?;
     get_required_log(conn, log_id, work_order_id)?;
+    ensure_not_trashed(conn, work_order_id)?;
     let content = input
         .content
         .as_deref()
@@ -176,6 +177,7 @@ pub fn delete_log(
     work_order_id: i64,
 ) -> Result<(), ServiceError> {
     get_required_log(conn, log_id, work_order_id)?;
+    ensure_not_trashed(conn, work_order_id)?;
     conn.execute("DELETE FROM progress_log WHERE id = ?1", params![log_id])?;
     Ok(())
 }
@@ -354,6 +356,37 @@ mod tests {
                 .map(String::as_str),
             Some("运维组"),
         );
+        drop(conn);
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn add_log_rejects_trashed_work_order() {
+        let (conn, dir) = temp_db();
+        let wo = create(
+            &conn,
+            WorkOrderInput {
+                title: "trashed".into(),
+                description: None,
+                status: "NOT_STARTED".into(),
+                extra_fields: None,
+                due_date: None,
+                tags: vec![],
+            },
+            &config(),
+            &tag_config(),
+        )
+        .unwrap();
+        let id = wo.id.unwrap();
+        let mut conn = conn;
+        crate::services::work_order_service::trash_work_orders(&mut conn, &[id]).unwrap();
+        let err = add_log(&conn, id, &sample_input("nope"), &config()).unwrap_err();
+        match err {
+            ServiceError::Validation(msg) => {
+                assert_eq!(msg, crate::services::work_order_service::RECYCLE_BIN_VALIDATION)
+            }
+            other => panic!("{other:?}"),
+        }
         drop(conn);
         let _ = std::fs::remove_dir_all(dir);
     }

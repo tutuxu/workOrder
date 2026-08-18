@@ -33,6 +33,7 @@ export const shortcutUiState = {
 
 export type AppShortcutContext = {
   settingsOpen: boolean;
+  recycleBinOpen: boolean;
   detailOpen: boolean;
   progressFormVisible: boolean;
 };
@@ -41,6 +42,7 @@ function resolveActiveContext(state: AppShortcutContext): ShortcutContext {
   if (state.settingsOpen) return "settings";
   if (state.detailOpen && state.progressFormVisible) return "detail.progressForm";
   if (state.detailOpen) return "detail";
+  if (state.recycleBinOpen) return "recycleBin";
   return "list";
 }
 

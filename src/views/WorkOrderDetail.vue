@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch, type Ref } from "vue";
 import dayjs from "dayjs";
-import { useDialog, useMessage } from "naive-ui";
+import { useMessage } from "naive-ui";
 import { formatServerDateTime } from "../utils/datetime";
+import { formatServiceError } from "../utils/serviceError";
 import * as workOrderApi from "../api/workOrders";
 import * as progressLogApi from "../api/progressLogs";
 import AttachmentGallery from "../components/AttachmentGallery.vue";
@@ -10,6 +11,7 @@ import ProgressLogForm from "../components/ProgressLogForm.vue";
 import TagPicker from "../components/TagPicker.vue";
 import { useStatusConfig } from "../composables/useStatusConfig";
 import { useTagConfig } from "../composables/useTagConfig";
+import { useTrashConfirm } from "../composables/useTrashConfirm";
 import {
   getEffectiveBinding,
   registerShortcut,
@@ -33,9 +35,13 @@ import {
 } from "../utils/keyboard";
 import { tagStyleForStatus } from "../utils/statusColors";
 
-const props = defineProps<{
-  workOrder: WorkOrder | null;
-}>();
+const props = withDefaults(
+  defineProps<{
+    workOrder: WorkOrder | null;
+    readOnly?: boolean;
+  }>(),
+  { readOnly: false },
+);
 
 const emit = defineEmits<{
   saved: [];
@@ -43,7 +49,7 @@ const emit = defineEmits<{
 }>();
 
 const message = useMessage();
-const dialog = useDialog();
+const { confirmMoveToTrash } = useTrashConfirm();
 const {
   statusOptions,
   statusLabel,
@@ -93,7 +99,10 @@ function setEditProgressFormRef(
 
 const workOrderId = ref<number | undefined>(props.workOrder?.id ?? undefined);
 const isNew = computed(() => workOrderId.value == null);
-const modalTitle = computed(() => (isNew.value ? "新建代办" : "编辑代办"));
+const modalTitle = computed(() => {
+  if (props.readOnly) return "查看代办";
+  return isNew.value ? "新建代办" : "编辑代办";
+});
 const activeFields = computed(() => fieldsForStatus(status.value));
 const progressActiveFields = computed(() => fieldsForStatus(progressStatus.value));
 const saveButtonLabel = computed(() => {
@@ -253,6 +262,16 @@ onMounted(async () => {
   await Promise.all([loadStatusConfig(), loadTagConfig()]);
   if (props.workOrder) {
     bindForm(props.workOrder);
+    if (props.workOrder.id != null) {
+      try {
+        const fresh = await workOrderApi.getWorkOrder(props.workOrder.id);
+        bindForm(fresh);
+      } catch (error) {
+        message.error(`加载失败：${formatServiceError(error)}`);
+        close();
+        return;
+      }
+    }
     await loadLogs();
   } else {
     resetForNew();
@@ -262,21 +281,13 @@ onMounted(async () => {
     handler: () => {
       void save();
     },
-    enabled: () => show.value && !saving.value,
+    enabled: () => show.value && !saving.value && !props.readOnly,
   });
   registerShortcut("detail.delete", {
     handler: () => {
-      dialog.warning({
-        title: "确认删除",
-        content: "确定删除该代办事项吗？",
-        positiveText: "删除",
-        negativeText: "取消",
-        onPositiveClick: () => {
-          void confirmDelete();
-        },
-      });
+      requestDelete();
     },
-    enabled: () => show.value && !isNew.value,
+    enabled: () => show.value && !isNew.value && !props.readOnly,
   });
   registerShortcut("detail.close", {
     handler: () => {
@@ -288,7 +299,7 @@ onMounted(async () => {
     handler: () => {
       openProgressForm();
     },
-    enabled: () => show.value && !isNew.value && !showProgressForm.value,
+    enabled: () => show.value && !isNew.value && !showProgressForm.value && !props.readOnly,
   });
   registerShortcut("detail.saveProgress", {
     handler: () => {
@@ -362,9 +373,35 @@ async function save() {
       close();
     }
   } catch (e) {
-    message.error(String(e));
+    message.error(formatServiceError(e));
   } finally {
     saving.value = false;
+  }
+}
+
+function requestDelete() {
+  if (workOrderId.value == null) return;
+  confirmMoveToTrash({
+    count: 1,
+    singular: true,
+    onTrash: () => {
+      void trashCurrent();
+    },
+    onPermanent: () => {
+      void confirmDelete();
+    },
+  });
+}
+
+async function trashCurrent() {
+  if (workOrderId.value == null) return;
+  try {
+    await workOrderApi.trashWorkOrders([workOrderId.value]);
+    message.success("已移入回收站 1 条");
+    emit("saved");
+    close();
+  } catch (e) {
+    message.error(formatServiceError(e));
   }
 }
 
@@ -372,11 +409,11 @@ async function confirmDelete() {
   if (workOrderId.value == null) return;
   try {
     await workOrderApi.deleteWorkOrder(workOrderId.value);
-    message.success("已删除");
+    message.success("已彻底删除 1 条");
     emit("saved");
     close();
   } catch (e) {
-    message.error(String(e));
+    message.error(formatServiceError(e));
   }
 }
 
@@ -414,7 +451,7 @@ async function saveProgress() {
     }
     await loadLogs();
   } catch (e) {
-    message.error(String(e));
+    message.error(formatServiceError(e));
   }
 }
 
@@ -435,7 +472,7 @@ async function flushPendingProgress() {
       clearProgressForm();
     }
   } catch (e) {
-    message.error(String(e));
+    message.error(formatServiceError(e));
   }
 }
 
@@ -463,7 +500,7 @@ async function deleteProgress(log: ProgressLog) {
     expandedLogIds.value = expandedLogIds.value.filter((id) => id !== log.id);
     await loadLogs();
   } catch (e) {
-    message.error(String(e));
+    message.error(formatServiceError(e));
   }
 }
 
@@ -554,13 +591,14 @@ function formatExtraFieldValue(field: StatusField, value: string | undefined): s
     <div ref="modalContainerRef" @keydown="onFormKeydown">
     <n-form label-placement="top">
       <n-form-item label="标题" required>
-        <n-input v-model:value="title" @keydown="onTitleKeydown" />
+        <n-input v-model:value="title" :disabled="readOnly" @keydown="onTitleKeydown" />
       </n-form-item>
       <n-form-item label="描述">
         <n-input
           v-model:value="description"
           type="textarea"
           :rows="4"
+          :disabled="readOnly"
           @keydown="onDescriptionKeydown"
         />
       </n-form-item>
@@ -569,25 +607,33 @@ function formatExtraFieldValue(field: StatusField, value: string | undefined): s
           ref="workOrderGalleryRef"
           owner-type="work_order"
           :owner-id="workOrderId"
+          :readonly="readOnly"
         />
       </n-form-item>
       <n-form-item label="状态">
-        <n-radio-group v-model:value="status" data-field="status">
+        <n-radio-group v-model:value="status" :disabled="readOnly" data-field="status">
           <n-space>
             <n-radio
               v-for="opt in statusOptions"
               :key="opt.value"
               :value="opt.value"
               :label="opt.label"
+              :disabled="readOnly"
             />
           </n-space>
         </n-radio-group>
       </n-form-item>
       <n-form-item label="标签">
-        <TagPicker v-model:value="tags" />
+        <TagPicker v-model:value="tags" :disabled="readOnly" />
       </n-form-item>
       <n-form-item label="计划完成时间">
-        <n-date-picker v-model:value="dueDate" type="datetime" clearable style="width: 100%" />
+        <n-date-picker
+          v-model:value="dueDate"
+          type="datetime"
+          clearable
+          style="width: 100%"
+          :disabled="readOnly"
+        />
       </n-form-item>
       <template v-for="field in activeFields" :key="field.key">
         <n-form-item :label="field.label" :required="field.required">
@@ -597,6 +643,7 @@ function formatExtraFieldValue(field: StatusField, value: string | undefined): s
             type="datetime"
             clearable
             style="width: 100%"
+            :disabled="readOnly"
             @update:value="(v: number | null) => setExtraFieldDate(field.key, v)"
           />
           <n-input
@@ -604,6 +651,7 @@ function formatExtraFieldValue(field: StatusField, value: string | undefined): s
             :value="getExtraFieldText(field.key)"
             :type="fieldInputType(field)"
             :rows="field.type === 'textarea' ? 3 : undefined"
+            :disabled="readOnly"
             @update:value="(v: string) => setExtraFieldText(field.key, v)"
             @keydown="(e: KeyboardEvent) => onExtraFieldKeydown(e, field.key)"
           />
@@ -636,7 +684,7 @@ function formatExtraFieldValue(field: StatusField, value: string | undefined): s
           </template>
           <div class="progress-body">
             <ProgressLogForm
-              v-if="editingLogId === log.id"
+              v-if="!readOnly && editingLogId === log.id"
               :ref="(el) => setEditProgressFormRef(log.id, el as InstanceType<typeof ProgressLogForm> | null)"
               inline
               v-model:title="progressTitle"
@@ -665,7 +713,7 @@ function formatExtraFieldValue(field: StatusField, value: string | undefined): s
                 :owner-id="log.id"
                 readonly
               />
-              <n-space>
+              <n-space v-if="!readOnly">
                 <n-button text type="primary" @click="startEdit(log)">编辑</n-button>
                 <n-popconfirm @positive-click="deleteProgress(log)">
                   <template #trigger>
@@ -680,7 +728,7 @@ function formatExtraFieldValue(field: StatusField, value: string | undefined): s
       </n-collapse>
 
       <n-button
-        v-if="!showProgressForm"
+        v-if="!readOnly && !showProgressForm"
         type="primary"
         style="margin-top: 12px"
         @click="openProgressForm"
@@ -690,7 +738,7 @@ function formatExtraFieldValue(field: StatusField, value: string | undefined): s
     </template>
 
     <ProgressLogForm
-      v-if="!isNew && showProgressForm && editingLogId == null"
+      v-if="!readOnly && !isNew && showProgressForm && editingLogId == null"
       ref="addProgressFormRef"
       v-model:title="progressTitle"
       v-model:status="progressStatus"
@@ -701,15 +749,10 @@ function formatExtraFieldValue(field: StatusField, value: string | undefined): s
     />
     </div>
 
-    <template #footer>
+    <template v-if="!readOnly" #footer>
       <n-space justify="end">
         <n-button type="primary" :loading="saving" @click="save">{{ saveButtonLabel }}</n-button>
-        <n-popconfirm v-if="!isNew" @positive-click="confirmDelete">
-          <template #trigger>
-            <n-button type="error">删除</n-button>
-          </template>
-          确定删除该代办事项吗？
-        </n-popconfirm>
+        <n-button v-if="!isNew" type="error" @click="requestDelete">删除</n-button>
       </n-space>
     </template>
   </n-modal>

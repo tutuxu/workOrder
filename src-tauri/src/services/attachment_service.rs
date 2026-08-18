@@ -114,6 +114,35 @@ fn verify_owner_exists(
     Ok(())
 }
 
+fn work_order_id_for_owner(
+    conn: &Connection,
+    owner_type: OwnerType,
+    owner_id: i64,
+) -> Result<i64, ServiceError> {
+    match owner_type {
+        OwnerType::WorkOrder => Ok(owner_id),
+        OwnerType::ProgressLog => conn
+            .query_row(
+                "SELECT work_order_id FROM progress_log WHERE id = ?1",
+                params![owner_id],
+                |row| row.get(0),
+            )
+            .optional()?
+            .ok_or_else(|| {
+                ServiceError::NotFound(format!("Progress log not found: {owner_id}"))
+            }),
+    }
+}
+
+fn ensure_owner_writable(
+    conn: &Connection,
+    owner_type: OwnerType,
+    owner_id: i64,
+) -> Result<(), ServiceError> {
+    let work_order_id = work_order_id_for_owner(conn, owner_type, owner_id)?;
+    work_order_service::ensure_not_trashed(conn, work_order_id)
+}
+
 fn row_to_attachment(
     row: &rusqlite::Row<'_>,
     data_dir: &Path,
@@ -235,6 +264,7 @@ fn write_validated_image(
     original_name: Option<&str>,
 ) -> Result<Attachment, ServiceError> {
     verify_owner_exists(conn, owner_type, owner_id)?;
+    ensure_owner_writable(conn, owner_type, owner_id)?;
     let header_len = data.len().min(16);
     validate_image(mime_type, data.len(), &data[..header_len])?;
 
@@ -317,12 +347,16 @@ pub fn add_from_bytes(
     )
 }
 
-/// 删除单条附件记录及磁盘文件。
+/// 删除单条附件记录及磁盘文件（用户操作：所属工单须未在回收站）。
 pub fn delete_one(conn: &Connection, data_dir: &Path, id: i64) -> Result<(), ServiceError> {
     let att = get_by_id(conn, data_dir, id)?;
-    let owner_type = att.owner_type;
-    let owner_id = att.owner_id;
-    let dir = attachments_dir(data_dir, owner_type, owner_id);
+    ensure_owner_writable(conn, att.owner_type, att.owner_id)?;
+    remove_attachment(conn, data_dir, &att)
+}
+
+fn remove_attachment(conn: &Connection, data_dir: &Path, att: &Attachment) -> Result<(), ServiceError> {
+    let id = att.id.ok_or_else(|| ServiceError::NotFound("Attachment id missing".into()))?;
+    let dir = attachments_dir(data_dir, att.owner_type, att.owner_id);
     let file_path = dir.join(&att.file_name);
     ensure_path_in_attachments(data_dir, &file_path)?;
 
@@ -343,9 +377,7 @@ pub fn delete_all_for_owner(
 ) -> Result<(), ServiceError> {
     let items = list_by_owner(conn, data_dir, owner_type, owner_id)?;
     for att in items {
-        if let Some(id) = att.id {
-            delete_one(conn, data_dir, id)?;
-        }
+        remove_attachment(conn, data_dir, &att)?;
     }
     let dir = attachments_dir(data_dir, owner_type, owner_id);
     if dir.exists() {
@@ -540,5 +572,32 @@ mod tests {
             .is_empty());
         assert!(!attachments_dir(&dir, OwnerType::WorkOrder, wo_id).exists());
         assert!(!attachments_dir(&dir, OwnerType::ProgressLog, log_id).exists());
+    }
+
+    #[test]
+    fn add_attachment_rejects_trashed_work_order() {
+        let (conn, dir) = temp_db();
+        let wo = work_order_service::create(&conn, wo_input("trashed att"), &config(), &tag_config()).unwrap();
+        let wo_id = wo.id.unwrap();
+        let mut conn = conn;
+        work_order_service::trash_work_orders(&mut conn, &[wo_id]).unwrap();
+        let err = add_from_bytes(
+            &conn,
+            &dir,
+            OwnerType::WorkOrder,
+            wo_id,
+            "test.png",
+            "image/png",
+            &sample_png(),
+        )
+        .unwrap_err();
+        match err {
+            ServiceError::Validation(msg) => {
+                assert_eq!(msg, work_order_service::RECYCLE_BIN_VALIDATION)
+            }
+            other => panic!("{other:?}"),
+        }
+        drop(conn);
+        let _ = std::fs::remove_dir_all(dir);
     }
 }

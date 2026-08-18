@@ -18,6 +18,14 @@ export const commands = {
 	updatePriorities: (orderedIds: number[]) => __TAURI_INVOKE<null>("update_priorities", { orderedIds }),
 	/**  判断工单是否逾期（有 due_date 且早于当前时间）。 */
 	isWorkOrderOverdue: (workOrder: WorkOrder) => __TAURI_INVOKE<boolean>("is_work_order_overdue", { workOrder }),
+	/**  列出回收站中的工单，按删除时间新到旧。 */
+	listTrashedWorkOrders: () => __TAURI_INVOKE<WorkOrder[]>("list_trashed_work_orders"),
+	/**  将事项移入回收站；已在回收站或不存在的 id 跳过。 */
+	trashWorkOrders: (ids: number[]) => __TAURI_INVOKE<null>("trash_work_orders", { ids }),
+	/**  从回收站还原事项；不在回收站或不存在的 id 跳过。 */
+	restoreWorkOrders: (ids: number[]) => __TAURI_INVOKE<null>("restore_work_orders", { ids }),
+	/**  彻底删除事项（含附件与进度）；不存在的 id 跳过。 */
+	permanentlyDeleteWorkOrders: (ids: number[]) => __TAURI_INVOKE<null>("permanently_delete_work_orders", { ids }),
 	getStatusConfig: () => __TAURI_INVOKE<StatusConfig>("get_status_config"),
 	saveStatusConfig: (config: StatusConfig) => __TAURI_INVOKE<null>("save_status_config", { config }),
 	pickStatusConfigSavePath: () => __TAURI_INVOKE<string | null>("pick_status_config_save_path"),
@@ -181,6 +189,7 @@ export type WorkOrder = {
 	tags?: string[],
 	createdAt: string,
 	updatedAt: string,
+	deletedAt?: string | null,
 };
 
 /**  创建或更新工单时的输入（不含 priority 与时间戳，由 Service 层填充）。 */
