@@ -120,6 +120,18 @@ function removeStatus(id: string) {
   });
 }
 
+function moveStatus(id: string, delta: -1 | 1) {
+  const list = [...statusList.value];
+  const index = list.findIndex((s) => s.id === id);
+  if (index < 0) return;
+  const target = index + delta;
+  if (target < 0 || target >= list.length) return;
+  const next = [...list];
+  const [item] = next.splice(index, 1);
+  next.splice(target, 0, item);
+  statusList.value = next;
+}
+
 function updateSelectedStatus(patch: Partial<StatusDefinition>) {
   if (!draft.value || !selectedStatus.value) return;
   const nextPatch = { ...patch };
@@ -254,14 +266,32 @@ async function doRestore() {
                 />
                 {{ item.label }}
               </span>
-              <n-button
-                text
-                type="error"
-                size="tiny"
-                @click.stop="removeStatus(item.id)"
-              >
-                删除
-              </n-button>
+              <n-space :size="4" @click.stop>
+                <n-button
+                  text
+                  size="tiny"
+                  :disabled="statusList[0]?.id === item.id"
+                  @click="moveStatus(item.id, -1)"
+                >
+                  上移
+                </n-button>
+                <n-button
+                  text
+                  size="tiny"
+                  :disabled="statusList[statusList.length - 1]?.id === item.id"
+                  @click="moveStatus(item.id, 1)"
+                >
+                  下移
+                </n-button>
+                <n-button
+                  text
+                  type="error"
+                  size="tiny"
+                  @click.stop="removeStatus(item.id)"
+                >
+                  删除
+                </n-button>
+              </n-space>
             </div>
           </VueDraggable>
           <n-button style="margin-top: 8px" @click="addStatus">添加状态</n-button>

@@ -304,6 +304,36 @@ body {
   color: #666;
 }
 
+.work-order-card .card-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.work-order-card .card-progress-empty {
+  color: #999;
+}
+
+.work-order-card .card-progress-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
+.work-order-card .card-progress-row-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #333;
+}
+
+.work-order-card .card-progress-more {
+  color: #999;
+}
+
 .work-order-card .card-drag-handle {
   position: absolute;
   top: 8px;

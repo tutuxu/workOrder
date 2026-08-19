@@ -23,6 +23,8 @@ pub struct WorkOrder {
     pub updated_at: NaiveDateTime,
     #[serde(default)]
     pub deleted_at: Option<NaiveDateTime>,
+    #[serde(default)]
+    pub progress_summaries: Vec<crate::models::progress_log::ProgressLogSummary>,
 }
 
 /// 创建或更新工单时的输入（不含 priority 与时间戳，由 Service 层填充）。

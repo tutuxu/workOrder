@@ -40,6 +40,7 @@ fn row_to_work_order(row: &rusqlite::Row<'_>) -> Result<WorkOrder, rusqlite::Err
         created_at: read_datetime_column(row, "created_at")?,
         updated_at: read_datetime_column(row, "updated_at")?,
         deleted_at: read_optional_datetime_column(row, "deleted_at")?,
+        progress_summaries: vec![],
     })
 }
 
@@ -123,6 +124,52 @@ fn enrich_with_tags(conn: &Connection, mut wo: WorkOrder) -> Result<WorkOrder, S
         wo.tags = load_tags_for_work_order(conn, id)?;
     }
     Ok(wo)
+}
+
+fn attach_progress_summaries(
+    conn: &Connection,
+    orders: &mut [WorkOrder],
+) -> Result<(), ServiceError> {
+    let ids: Vec<i64> = orders.iter().filter_map(|w| w.id).collect();
+    if ids.is_empty() {
+        return Ok(());
+    }
+    let placeholders: Vec<String> = (1..=ids.len()).map(|i| format!("?{i}")).collect();
+    let sql = format!(
+        "SELECT id, work_order_id, title, status, created_at FROM progress_log \
+         WHERE work_order_id IN ({}) ORDER BY created_at DESC",
+        placeholders.join(", ")
+    );
+    let mut stmt = conn.prepare(&sql)?;
+    let params_refs: Vec<&dyn rusqlite::types::ToSql> = ids
+        .iter()
+        .map(|id| id as &dyn rusqlite::types::ToSql)
+        .collect();
+    let rows = stmt.query_map(params_refs.as_slice(), |row| {
+        let work_order_id: i64 = row.get("work_order_id")?;
+        Ok((
+            work_order_id,
+            crate::models::progress_log::ProgressLogSummary {
+                id: Some(row.get("id")?),
+                title: row.get("title")?,
+                status: row.get("status")?,
+                created_at: read_datetime_column(row, "created_at")?,
+            },
+        ))
+    })?;
+
+    let mut by_wo: HashMap<i64, Vec<crate::models::progress_log::ProgressLogSummary>> =
+        HashMap::new();
+    for row in rows {
+        let (work_order_id, s) = row?;
+        by_wo.entry(work_order_id).or_default().push(s);
+    }
+    for wo in orders.iter_mut() {
+        if let Some(id) = wo.id {
+            wo.progress_summaries = by_wo.remove(&id).unwrap_or_default();
+        }
+    }
+    Ok(())
 }
 
 const WORK_ORDER_SELECT: &str = "SELECT id, title, description, status, priority, extra_fields, due_date, created_at, updated_at, deleted_at FROM work_order";
@@ -365,6 +412,7 @@ pub fn find_by_filters(
     for row in rows {
         result.push(enrich_with_tags(conn, row?)?);
     }
+    attach_progress_summaries(conn, &mut result)?;
     Ok(result)
 }
 
@@ -830,6 +878,70 @@ mod tests {
         delete(&conn, id).unwrap();
         let err = get_required(&conn, id).unwrap_err();
         assert!(matches!(err, ServiceError::NotFound(_)));
+        drop(conn);
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn find_by_statuses_includes_progress_summaries_ordered_desc() {
+        let (conn, dir) = temp_db();
+        let cfg = config();
+        let tags = tag_config();
+        let a = create(&conn, input("A"), &cfg, &tags).unwrap();
+        let b = create(&conn, input("B"), &cfg, &tags).unwrap();
+        let a_id = a.id.unwrap();
+        let b_id = b.id.unwrap();
+
+        crate::services::progress_log_service::add_log(
+            &conn,
+            a_id,
+            &crate::models::progress_log::ProgressLogInput {
+                title: "old".into(),
+                content: Some("secret".into()),
+                status: "NOT_STARTED".into(),
+                extra_fields: None,
+            },
+            &cfg,
+        )
+        .unwrap();
+        std::thread::sleep(std::time::Duration::from_millis(20));
+        crate::services::progress_log_service::add_log(
+            &conn,
+            a_id,
+            &crate::models::progress_log::ProgressLogInput {
+                title: "new".into(),
+                content: None,
+                status: "IN_PROGRESS".into(),
+                extra_fields: None,
+            },
+            &cfg,
+        )
+        .unwrap();
+        crate::services::progress_log_service::add_log(
+            &conn,
+            b_id,
+            &crate::models::progress_log::ProgressLogInput {
+                title: "b-only".into(),
+                content: None,
+                status: "COMPLETED".into(),
+                extra_fields: None,
+            },
+            &cfg,
+        )
+        .unwrap();
+
+        let list = find_by_statuses(&conn, &[], None).unwrap();
+        let wo_a = list.iter().find(|w| w.id == Some(a_id)).unwrap();
+        let wo_b = list.iter().find(|w| w.id == Some(b_id)).unwrap();
+        assert_eq!(wo_a.progress_summaries.len(), 2);
+        assert_eq!(wo_a.progress_summaries[0].title, "new");
+        assert_eq!(wo_a.progress_summaries[1].title, "old");
+        assert_eq!(wo_b.progress_summaries.len(), 1);
+        assert_eq!(wo_b.progress_summaries[0].title, "b-only");
+
+        let single = get_required(&conn, a_id).unwrap();
+        assert!(single.progress_summaries.is_empty());
+
         drop(conn);
         let _ = std::fs::remove_dir_all(dir);
     }

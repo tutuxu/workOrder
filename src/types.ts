@@ -20,6 +20,7 @@ export type {
   WorkOrderInput,
   ProgressLog,
   ProgressLogInput,
+  ProgressLogSummary,
 } from "./bindings";
 
 export function statusLabelFromConfig(

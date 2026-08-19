@@ -126,6 +126,14 @@ export type ProgressLogInput = {
 	extraFields: { [key in string]: string } | null,
 };
 
+/**  列表卡片用的过程摘要（无正文 / 扩展字段 / work_order_id）。 */
+export type ProgressLogSummary = {
+	id: number | null,
+	title: string,
+	status: string,
+	createdAt: string,
+};
+
 export type SettingsInfo = {
 	dataDir: string,
 	settingsPath: string,
@@ -190,6 +198,7 @@ export type WorkOrder = {
 	createdAt: string,
 	updatedAt: string,
 	deletedAt?: string | null,
+	progressSummaries?: ProgressLogSummary[],
 };
 
 /**  创建或更新工单时的输入（不含 priority 与时间戳，由 Service 层填充）。 */

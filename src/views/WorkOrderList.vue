@@ -11,7 +11,9 @@ import { useTagConfig } from "../composables/useTagConfig";
 import { registerShortcut, unregisterShortcut } from "../composables/useShortcuts";
 import { useListViewMode, type ListViewMode } from "../composables/useListViewMode";
 import { useTrashConfirm } from "../composables/useTrashConfirm";
-import { rowStyleForStatus, tagStyleForTag } from "../utils/statusColors";
+import { rowStyleForStatus, tagStyleForStatus, tagStyleForTag } from "../utils/statusColors";
+import { CARD_PROGRESS_MAX, sortCardProgress } from "../utils/cardProgress";
+import type { ProgressLogSummary } from "../types";
 
 const emit = defineEmits<{
   openDetail: [order: import("../types").WorkOrder | null];
@@ -284,6 +286,14 @@ function rowStyle(order: import("../types").WorkOrder) {
   return rowStyleForStatus(statusColor(order.status), isOverdue(order));
 }
 
+function orderedStatusIds(): string[] {
+  return statusOptions.value.map((o) => o.value);
+}
+
+function cardProgress(item: { progressSummaries?: ProgressLogSummary[] }) {
+  return sortCardProgress(item.progressSummaries ?? [], orderedStatusIds());
+}
+
 function isSelected(id: number | null | undefined) {
   return id != null && selectedIds.value.has(id);
 }
@@ -484,6 +494,30 @@ defineExpose({ reload });
                     {{ tagLabel(tagId) }}
                   </n-tag>
                 </n-space>
+                <div class="card-progress">
+                  <template v-if="!(item.progressSummaries?.length)">
+                    <div class="card-progress-empty">暂无过程</div>
+                  </template>
+                  <template v-else>
+                    <div
+                      v-for="(log, idx) in cardProgress(item).items"
+                      :key="log.id ?? `${log.status}-${idx}`"
+                      class="card-progress-row"
+                    >
+                      <span class="card-progress-row-title">{{ log.title }}</span>
+                      <n-tag
+                        size="small"
+                        :bordered="false"
+                        :style="tagStyleForStatus(statusColor(log.status))"
+                      >
+                        {{ statusLabel(log.status) }}
+                      </n-tag>
+                    </div>
+                    <div v-if="(item.progressSummaries?.length ?? 0) > CARD_PROGRESS_MAX" class="card-progress-more">
+                      还有更多
+                    </div>
+                  </template>
+                </div>
                 <div class="card-meta">
                   <span>状态：{{ statusLabel(item.status) }}</span>
                   <span>计划完成：{{ formatLocalDateTime(item.dueDate) }}</span>

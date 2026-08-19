@@ -28,3 +28,13 @@ pub struct ProgressLogInput {
     pub status: String,
     pub extra_fields: Option<HashMap<String, String>>,
 }
+
+/// 列表卡片用的过程摘要（无正文 / 扩展字段 / work_order_id）。
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct ProgressLogSummary {
+    pub id: Option<i64>,
+    pub title: String,
+    pub status: String,
+    pub created_at: NaiveDateTime,
+}
